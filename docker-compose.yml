@@ -1,0 +1,12 @@
+services:
+  animehes:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "7100:7100"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 7100
+      HENTAILA_BASE_URL: https://hentaila.com
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      TMDB_READ_ACCESS_TOKEN: ${TMDB_READ_ACCESS_TOKEN:-}

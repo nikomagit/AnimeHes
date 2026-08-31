@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: animehes
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 7100
+      - key: HENTAILA_BASE_URL
+        value: https://hentaila.com
+      - key: TMDB_API_KEY
+        sync: false
