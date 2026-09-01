@@ -2,6 +2,8 @@
 
 AnimeHes es un addon de reproducción directa con tres proveedores independientes: [AnimeAV1](https://animeav1.com/), [Hentaila](https://hentaila.com/) y [JKAnime](https://jkanime.net/). Expone únicamente los catálogos de Hentaila y busca streams HTTP/HTTPS en los tres proveedores.
 
+El manifest incluye el logo oficial del addon en `/logo.jpg`.
+
 No usa torrents, magnet links, `infoHash`, P2P, TorBox, Real-Debrid ni descargas locales. El manifest declara `p2p: false`.
 
 > Los sitios y hosts de vídeo son servicios de terceros. Usa el proyecto solo donde el contenido y el acceso estén permitidos, y respeta sus términos y la legislación aplicable. El addon no evita autenticación, CAPTCHA, DRM, protecciones anti-bot ni restricciones de acceso.

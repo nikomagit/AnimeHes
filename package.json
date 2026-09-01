@@ -1,6 +1,6 @@
 {
   "name": "animehes",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "AnimeHes: catálogos Hentaila y streams HTTP directos de AnimeAV1, Hentaila y JKAnime para Nuvio/Stremio.",
   "type": "module",
   "private": true,

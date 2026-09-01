@@ -12,6 +12,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
+COPY assets ./assets
 USER node
 EXPOSE 7100
 CMD ["node", "dist/server.js"]

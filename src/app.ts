@@ -1,5 +1,7 @@
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import type { AppConfig } from "./config.js";
 import {
   AppError,
@@ -95,6 +97,7 @@ export async function buildApp(
       version: manifest.version,
       protocol: "Stremio addon protocol (Nuvio compatible)",
       manifest: "/manifest.json",
+      logo: "/logo.jpg",
       health: "/health",
       sources: ["AnimeAV1", "Hentaila", "JKAnime"],
       streaming: "Direct HTTP/HTTPS only",
@@ -105,6 +108,13 @@ export async function buildApp(
   app.get("/manifest.json", async (_request, reply) => {
     void reply.header("cache-control", "public, max-age=86400");
     return manifest;
+  });
+
+  app.get("/logo.jpg", async (_request, reply) => {
+    void reply.header("cache-control", "public, max-age=604800, immutable");
+    return reply.type("image/jpeg").send(
+      await readFile(resolve(process.cwd(), "assets", "logo-gato.jpg")),
+    );
   });
 
   app.get("/health", async (_request, reply) => {

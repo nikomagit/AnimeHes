@@ -1,7 +1,8 @@
 {
   "id": "org.nuvio.animehes",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "name": "AnimeHes",
+  "logo": "https://animehes.onrender.com/logo.jpg",
   "description": "AnimeHes ofrece catálogos Hentaila y streams HTTP/HTTPS directos de AnimeAV1, Hentaila y JKAnime, sin P2P.",
   "catalogs": [
     { "type": "series", "id": "hentaila-popular", "name": "Hentaila — Populares", "extra": [{ "name": "skip", "isRequired": false }] },

@@ -21,7 +21,8 @@ describe("HTTP addon interface", () => {
     const body = response.json();
     expect(body).toMatchObject({
       id: "org.nuvio.animehes",
-      version: "1.2.0",
+      version: "1.2.1",
+      logo: "https://animehes.onrender.com/logo.jpg",
       behaviorHints: { adult: true, p2p: false, configurable: false },
     });
     expect(body.resources).toEqual(expect.arrayContaining([
@@ -34,6 +35,18 @@ describe("HTTP addon interface", () => {
       "hentaila-airing",
       "hentaila-uncensored",
     ]);
+  });
+
+  it("serves the addon logo as a cacheable JPEG", async () => {
+    const app = await buildApp(testConfig(), {
+      searchService: { getStreams: vi.fn().mockResolvedValue([]) },
+    });
+    apps.push(app);
+    const response = await app.inject({ method: "GET", url: "/logo.jpg" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("image/jpeg");
+    expect(response.headers["cache-control"]).toContain("immutable");
+    expect(response.rawPayload.byteLength).toBeGreaterThan(100_000);
   });
 
   it("serves catalog pagination and provider-native metadata envelopes", async () => {
