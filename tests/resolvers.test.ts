@@ -4,7 +4,7 @@ import { DirectStreamResolverRegistry } from "../src/providers/hentaila/resolver
 import { testConfig } from "./helpers.js";
 
 describe("direct video resolvers", () => {
-  it("resolves only verified VIP, YourUpload and MP4Upload mirrors", async () => {
+  it("resolves verified Hentaila and AnimeAV1 HLS, YourUpload and MP4Upload mirrors", async () => {
     const request: FetchText = vi.fn(async (url) => {
       const host = new URL(url).hostname;
       if (host.includes("yourupload")) {
@@ -15,9 +15,10 @@ describe("direct video resolvers", () => {
       }
       throw new Error("unexpected resolver request");
     });
-    const registry = new DirectStreamResolverRegistry(testConfig(), request);
+    const registry = new DirectStreamResolverRegistry(testConfig({ maxStreams: 8 }), request);
     const result = await registry.resolveAll([
       { server: "VIP", language: "SUB", url: "https://cdn.hvidserv.com/play/c71fcc3dec50f5ff2d0dd7b80afb08d3" },
+      { server: "HLS", language: "SUB", url: "https://player.zilla-networks.com/play/3304e956727a3cd4c4116a11526a6094" },
       { server: "Mega", language: "SUB", url: "https://mega.nz/embed/not-direct" },
       { server: "YourUpload", language: "SUB", url: "https://www.yourupload.com/embed/example" },
       { server: "MP4Upload", language: "SUB", url: "https://www.mp4upload.com/embed-example.html" },
@@ -25,6 +26,7 @@ describe("direct video resolvers", () => {
 
     expect(result.map((item) => [item.server, item.type])).toEqual([
       ["VIP", "hls"],
+      ["HLS", "hls"],
       ["YourUpload", "mp4"],
       ["MP4Upload", "mp4"],
     ]);
@@ -33,6 +35,7 @@ describe("direct video resolvers", () => {
       Referer: "https://cdn.hvidserv.com/play/c71fcc3dec50f5ff2d0dd7b80afb08d3",
       Origin: "https://cdn.hvidserv.com",
     });
+    expect(result[1]?.url).toBe("https://player.zilla-networks.com/m3u8/3304e956727a3cd4c4116a11526a6094");
   });
 
   it("rejects media URLs injected from an unexpected host", async () => {

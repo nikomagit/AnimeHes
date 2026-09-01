@@ -29,6 +29,7 @@ describe("conservative title matching", () => {
       slug: "kaede-to-suzu-the-animation",
       aka: { "en-us": "Love Me: Kaede and Suzu The Animation" },
       startDate: "2022-03-25",
+      genres: [],
       episodes: [{ number: 1 }, { number: 2 }],
     });
     expect(score).toBeGreaterThanOrEqual(0.98);

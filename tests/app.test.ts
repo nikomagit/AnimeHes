@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app.js";
 import { UpstreamTimeoutError } from "../src/errors.js";
-import type { StreamSearchService } from "../src/types.js";
+import type { CatalogService, MetaService, StreamSearchService } from "../src/types.js";
 import { testConfig } from "./helpers.js";
 
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -18,11 +18,46 @@ describe("HTTP addon interface", () => {
     const response = await app.inject({ method: "GET", url: "/manifest.json" });
     expect(response.statusCode).toBe(200);
     expect(response.headers["access-control-allow-origin"]).toBe("*");
-    expect(response.json()).toMatchObject({
+    const body = response.json();
+    expect(body).toMatchObject({
       id: "org.nuvio.animehes",
-      resources: [{ name: "stream", idPrefixes: ["tt", "tmdb:", "kitsu:"] }],
+      version: "1.1.0",
       behaviorHints: { adult: true, p2p: false, configurable: false },
     });
+    expect(body.resources).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "catalog" }),
+      expect.objectContaining({ name: "meta", idPrefixes: ["animehes:"] }),
+      expect.objectContaining({ name: "stream", idPrefixes: ["tt", "tmdb:", "kitsu:", "animehes:"] }),
+    ]));
+    expect(body.catalogs.map((catalog: { id: string }) => catalog.id)).toEqual([
+      "animeav1-popular",
+      "animeav1-airing",
+      "hentaila-popular",
+      "hentaila-airing",
+      "hentaila-uncensored",
+    ]);
+  });
+
+  it("serves catalog pagination and provider-native metadata envelopes", async () => {
+    const catalogService: CatalogService = {
+      getCatalog: vi.fn().mockResolvedValue([{ id: "animehes:animeav1:one-piece", type: "series", name: "One Piece" }]),
+    };
+    const metaService: MetaService = {
+      getMeta: vi.fn().mockResolvedValue({ id: "animehes:animeav1:one-piece", type: "series", name: "One Piece" }),
+    };
+    const app = await buildApp(testConfig(), {
+      searchService: { getStreams: vi.fn().mockResolvedValue([]) },
+      catalogService,
+      metaService,
+    });
+    apps.push(app);
+    const catalog = await app.inject({ method: "GET", url: "/catalog/series/animeav1-popular/skip=20.json" });
+    expect(catalog.statusCode).toBe(200);
+    expect(catalog.json().metas).toHaveLength(1);
+    expect(catalogService.getCatalog).toHaveBeenCalledWith("series", "animeav1-popular", 20);
+    const meta = await app.inject({ method: "GET", url: "/meta/series/animehes:animeav1:one-piece.json" });
+    expect(meta.statusCode).toBe(200);
+    expect(meta.json().meta.name).toBe("One Piece");
   });
 
   it("returns the standard streams envelope", async () => {

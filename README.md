@@ -1,102 +1,58 @@
-# AnimeHes para Nuvio
+# AnimeHes para Nuvio/Stremio
 
-AnimeHes es un addon de streams compatible con Nuvio y con el protocolo de addons de Stremio. Busca el título solicitado en Hentaila, selecciona el episodio y devuelve fuentes HTTP/HTTPS reproducibles directamente.
+AnimeHes es un addon de reproducción directa con dos proveedores independientes: [AnimeAV1](https://animeav1.com/) y [Hentaila](https://hentaila.com/). Incluye catálogos navegables, metadatos de series y episodios, búsqueda por IDs externos y streams HTTP/HTTPS.
 
-Esta variante es independiente del addon anterior: no usa Sukebei, torrents, magnet links, `infoHash`, P2P, TorBox, Real-Debrid ni descargas locales. Su único proveedor de contenido es Hentaila.
+No usa torrents, magnet links, `infoHash`, P2P, TorBox, Real-Debrid ni descargas locales. El manifest declara `p2p: false`.
 
-> El sitio y los hosts de vídeo son servicios de terceros. Usa el proyecto solo donde el contenido y el acceso estén permitidos, y respeta sus términos y la legislación aplicable. El addon no evita autenticación, CAPTCHA, protecciones anti-bot ni restricciones de acceso.
+> Los sitios y hosts de vídeo son servicios de terceros. Usa el proyecto solo donde el contenido y el acceso estén permitidos, y respeta sus términos y la legislación aplicable. El addon no evita autenticación, CAPTCHA, DRM, protecciones anti-bot ni restricciones de acceso.
 
-## Qué incluye
+## Instalación pública
 
-- Endpoint estándar `GET /stream/{type}/{id}.json`.
-- IDs IMDb, TMDB y Kitsu.
-- Matching tolerante con títulos originales, alternativos, japoneses, ingleses y año.
-- Selección exacta de episodio para series.
-- Fuentes verificadas actualmente: VIP (HLS), YourUpload (MP4) y MP4Upload (MP4).
-- Encabezados de reproducción en `behaviorHints.proxyHeaders`, que Nuvio puede aplicar al reproductor.
-- Caché en memoria, timeouts, límites de respuesta, deduplicación y tolerancia a fuentes incompletas.
-- Tests, Docker, Docker Compose y configuración para Render.
-- Manifest marcado explícitamente como contenido adulto y `p2p: false`.
-
-No se inventan resoluciones: si el host no anuncia una calidad fiable, el stream se identifica como HLS o MP4.
-
-## Requisitos
-
-- Node.js 20 o superior y npm; o Docker.
-- Acceso permitido desde el servidor a `hentaila.com` y a sus hosts de vídeo.
-- Una clave de TMDB solo si Nuvio envía IDs con prefijo `tmdb:`. IMDb y Kitsu no requieren esa clave.
-
-## Ejecución local
-
-```bash
-npm install
-npm run build
-npm start
-```
-
-El servidor queda en `http://127.0.0.1:7100`. No es obligatorio crear un `.env` para utilizar IMDb o Kitsu.
-
-Para desarrollo con recarga automática:
-
-```bash
-npm run dev
-```
-
-Comprobaciones rápidas:
+Agrega este manifest en Nuvio o Stremio:
 
 ```text
-http://127.0.0.1:7100/health
-http://127.0.0.1:7100/manifest.json
+https://animehes.onrender.com/manifest.json
 ```
 
-## Configuración
+El plan gratuito de Render puede suspender el servidor por inactividad. La primera solicitud después de una pausa puede tardar mientras la instancia despierta; las siguientes deberían responder normalmente.
 
-Copia `.env.example` como `.env` únicamente si necesitas cambiar valores:
+## Catálogos
 
-```powershell
-Copy-Item .env.example .env
-```
+- `animeav1-popular`: AnimeAV1 — Populares.
+- `animeav1-airing`: AnimeAV1 — Al aire.
+- `hentaila-popular`: Hentaila — Populares.
+- `hentaila-airing`: Hentaila — Al aire.
+- `hentaila-uncensored`: Hentaila — Sin Censura, usando el filtro oficial ordenado por popularidad.
 
-En macOS o Linux:
+Todos aceptan `skip` y traducen el desplazamiento a la página correspondiente del proveedor. Cada ficha usa un ID estable con el formato `animehes:{proveedor}:{slug}`; los episodios añaden `:{episodio}`.
 
-```bash
-cp .env.example .env
-```
+## Funciones principales
 
-Variables principales:
+- Endpoints estándar `catalog`, `meta` y `stream` del protocolo Stremio.
+- Catálogos con póster, fondo, descripción, año, géneros, estado y episodios cuando la fuente los ofrece.
+- Búsqueda de streams mediante IDs IMDb, TMDB y Kitsu.
+- Matching tolerante con títulos originales, alternativos, japoneses e ingleses, con año como señal adicional.
+- AnimeAV1: HLS y MP4Upload actualmente compatibles.
+- Hentaila: VIP/HLS, YourUpload y MP4Upload actualmente compatibles.
+- Headers de reproducción en `behaviorHints.proxyHeaders` cuando el host los necesita.
+- Deduplicación por URL final y aislamiento de errores: una caída de un proveedor no bloquea al otro.
+- Caché temporal independiente para búsquedas, catálogos, metadatos y páginas de contenido.
+- Timeouts, límite de respuesta, validación de slugs/dominios y degradación segura a listas vacías.
 
-| Variable | Predeterminado | Uso |
-|---|---:|---|
-| `HOST` | `0.0.0.0` | Interfaz de escucha. |
-| `PORT` | `7100` | Puerto HTTP del addon. |
-| `TMDB_API_KEY` | vacío | Clave v3 opcional de TMDB. |
-| `TMDB_READ_ACCESS_TOKEN` | vacío | Token v4 opcional, alternativo a la clave v3. |
-| `TMDB_LANGUAGE` | `en-US` | Idioma solicitado a TMDB. |
-| `REQUEST_TIMEOUT_MS` | `10000` | Timeout para Hentaila y hosts de vídeo. |
-| `MIN_MATCH_SCORE` | `0.72` | Umbral conservador de coincidencia. |
-| `MAX_STREAMS` | `3` | Máximo de fuentes devueltas. |
+No se inventan calidades. Cuando el servidor no publica una resolución fiable, el resultado se identifica por servidor y tipo (HLS o MP4).
 
-Nunca publiques una clave real en Git. `.env` está excluido mediante `.gitignore`.
-
-## Instalar en Nuvio
-
-Con Nuvio en el mismo PC, agrega esta URL de manifest:
+## Endpoints
 
 ```text
-http://127.0.0.1:7100/manifest.json
+GET /health
+GET /manifest.json
+GET /catalog/series/{catalogId}.json
+GET /catalog/series/{catalogId}/skip=20.json
+GET /meta/{type}/animehes:{provider}:{slug}.json
+GET /stream/{type}/{id}.json
 ```
 
-Luego abre un título compatible y selecciona una fuente que empiece por `AnimeHes`.
-
-Desde otro equipo de la red local, usa la IP privada del PC servidor, por ejemplo:
-
-```text
-http://192.168.1.50:7100/manifest.json
-```
-
-En ese caso el proceso debe seguir ejecutándose y el firewall de Windows debe permitir TCP 7100 en la red privada. Para acceder desde Internet utiliza un despliegue HTTPS; no expongas el puerto doméstico sin TLS y controles de red adecuados.
-
-### Formatos de ID aceptados
+Ejemplos de IDs de stream admitidos:
 
 ```text
 /stream/movie/tt1234567.json
@@ -104,9 +60,54 @@ En ese caso el proceso debe seguir ejecutándose y el firewall de Windows debe p
 /stream/movie/tmdb:12345.json
 /stream/series/tmdb:12345:1:2.json
 /stream/series/kitsu:12345:2.json
+/stream/series/animehes:animeav1:slug:2.json
+/stream/series/animehes:hentaila:slug:2.json
 ```
 
-Los dos últimos segmentos de IMDb/TMDB son temporada y episodio. En Kitsu, el último segmento es el número de episodio.
+Los dos últimos segmentos de IMDb/TMDB son temporada y episodio. En Kitsu, el último segmento es el episodio. Los IDs `animehes:` nacen de los catálogos y no necesitan consultar un servicio externo de metadatos.
+
+## Ejecución local
+
+Requisitos: Node.js 20 o superior y npm.
+
+```bash
+npm install
+npm run build
+npm start
+```
+
+El servidor queda en `http://127.0.0.1:7100`. Para desarrollo con recarga automática usa `npm run dev`.
+
+Instala localmente:
+
+```text
+http://127.0.0.1:7100/manifest.json
+```
+
+No necesitas `.env` para IMDb, Kitsu o los IDs internos. TMDB requiere una clave o token del usuario.
+
+## Configuración
+
+Copia `.env.example` como `.env` solo si necesitas cambiar valores. `.env` está excluido de Git.
+
+| Variable | Predeterminado | Uso |
+|---|---:|---|
+| `HOST` | `0.0.0.0` | Interfaz de escucha. |
+| `PORT` | `7100` | Puerto HTTP. |
+| `ANIMEAV1_BASE_URL` | `https://animeav1.com` | Origen público de AnimeAV1. |
+| `ANIMEAV1_CDN_BASE_URL` | `https://cdn.animeav1.com` | Imágenes de AnimeAV1. |
+| `HENTAILA_BASE_URL` | `https://hentaila.com` | Origen público de Hentaila. |
+| `HENTAILA_CDN_BASE_URL` | `https://cdn.hentaila.com` | Imágenes de Hentaila. |
+| `TMDB_API_KEY` | vacío | Clave v3 opcional de TMDB. |
+| `TMDB_READ_ACCESS_TOKEN` | vacío | Token v4 opcional, alternativo. |
+| `REQUEST_TIMEOUT_MS` | `10000` | Timeout de proveedores y hosts. |
+| `CATALOG_CACHE_TTL_MS` | `900000` | Caché de catálogos (15 min). |
+| `SEARCH_CACHE_TTL_MS` | `60000` | Caché de búsqueda. |
+| `MEDIA_CACHE_TTL_MS` | `21600000` | Caché de fichas (6 h). |
+| `MAX_STREAMS` | `8` | Máximo total de streams. |
+| `MIN_MATCH_SCORE` | `0.72` | Umbral conservador de matching. |
+
+Nunca publiques claves, tokens, cookies ni URLs temporales de vídeo en el repositorio o los logs.
 
 ## Docker
 
@@ -114,43 +115,36 @@ Los dos últimos segmentos de IMDb/TMDB son temporada y episodio. En Kitsu, el �
 docker compose up -d --build
 ```
 
-Para habilitar TMDB, define `TMDB_API_KEY` o `TMDB_READ_ACCESS_TOKEN` en un archivo `.env` situado junto a `docker-compose.yml` antes de ejecutar Compose.
-
-También puedes usar Docker directamente:
+O directamente:
 
 ```bash
 docker build -t animehes .
 docker run --rm -p 7100:7100 -e PORT=7100 animehes
 ```
 
-## Despliegue remoto
-
-El método recomendado es desplegar el `Dockerfile` como un Web Service gratuito de Koyeb. Koyeb proporciona un dominio HTTPS público y el addon no necesita disco persistente. El repositorio también incluye `render.yaml` como alternativa para Render. El procedimiento completo está en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
-
-GitHub Pages no puede ejecutar este addon porque Pages sirve archivos estáticos y aquí se necesita un proceso Node.js que consulta metadatos y resuelve URLs temporales en cada petición. Sí puedes guardar el código en GitHub y desplegarlo desde allí en Koyeb, Render, un VPS u otro servicio compatible con contenedores.
+El procedimiento para Render, Koyeb y un VPS está en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). GitHub Pages no sirve porque el addon necesita un proceso Node.js activo para consultar los proveedores y resolver URLs temporales.
 
 ## Arquitectura
 
 ```text
-Nuvio /stream
-  -> parser de ID (IMDb, TMDB o Kitsu)
-  -> proveedor de metadatos y alias
-  -> búsqueda pública de Hentaila
-  -> matching conservador de título y año
-  -> selección de episodio
-  -> resolvers directos (VIP / YourUpload / MP4Upload)
-  -> { streams: [{ url, type, behaviorHints }] }
+Nuvio / Stremio
+  ├─ /catalog → proveedor → página pública → metas normalizadas
+  ├─ /meta    → ID animehes → ficha y episodios del proveedor
+  └─ /stream
+       ├─ ID animehes → proveedor conocido
+       └─ IMDb/TMDB/Kitsu → metadatos y alias → búsqueda paralela
+            → matching y episodio → resolvers HTTP → deduplicación
 ```
 
-El código está separado para que otros proveedores pudieran añadirse después, pero esta versión registra exclusivamente Hentaila:
+- `src/providers/svelte/`: cliente compartido para los datos públicos SvelteKit.
+- `src/providers/animeav1/` y `src/providers/hentaila/`: configuración aislada por proveedor.
+- `src/providers/resolvers.ts`: resolvers directos compartidos y específicos.
+- `src/metadata/`: IDs externos e internos y consultores de metadatos.
+- `src/services/`: catálogos, fichas, matching y búsqueda multi-proveedor.
+- `src/lib/`: HTTP limitado, caché y decodificación segura de datos.
+- `src/app.ts`: rutas Fastify y respuestas del protocolo.
 
-- `src/metadata/`: interpretación de IDs y metadatos.
-- `src/providers/hentaila/`: cliente y resolvers de vídeo.
-- `src/services/`: matching y orquestación.
-- `src/lib/`: HTTP limitado, caché y decodificación segura de datos públicos.
-- `src/app.ts`: endpoints Fastify.
-
-Las URLs de vídeo se resuelven al pedir streams porque algunas pueden caducar. El addon no almacena ni retransmite el vídeo: Nuvio lo solicita directamente al host indicado usando los headers declarados.
+Las URLs de vídeo se resuelven al pedir streams porque algunas caducan. AnimeHes no almacena ni retransmite el vídeo: el reproductor solicita directamente la URL indicada con los headers declarados.
 
 ## Desarrollo y verificación
 
@@ -160,26 +154,16 @@ npm test
 npm run build
 ```
 
-Los tests cubren IDs, decodificación de datos, parsing de Hentaila, matching, selección de episodios, resolvers, deduplicación y endpoints HTTP.
-
-## Respuestas y errores
-
-- Sin coincidencia, episodio inexistente o metadatos no disponibles: `{ "streams": [] }`.
-- Un espejo caído no elimina los demás; cada resolver se ejecuta de forma independiente.
-- Los requests remotos tienen timeout y tamaño máximo.
-- Solo se aceptan slugs y dominios esperados, y solo URLs finales HTTP/HTTPS de hosts explícitamente permitidos.
-- Cambios incompatibles en el sitio producen cero fuentes en vez de devolver URLs dudosas.
+Los tests cubren los cinco catálogos, filtros y paginación, manifest, IDs internos y externos, búsqueda, episodios, resolvers, deduplicación, aislamiento de fallos y endpoints HTTP. Consulta [docs/RESEARCH.md](docs/RESEARCH.md) para las comprobaciones en vivo y decisiones técnicas.
 
 ## Referencias
 
-- [Repositorio oficial de Nuvio](https://github.com/NuvioMedia/NuvioMobile)
+- [NuvioMobile](https://github.com/NuvioMedia/NuvioMobile)
 - [Protocolo de addons de Stremio](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/protocol.md)
 - [Esquema oficial de Stream](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/stream.md)
-- [Proyecto de AnimeFLV usado solo como referencia conceptual](https://github.com/Pigamer37/animeflv-stremio-addon)
+- [AnimeAV1](https://animeav1.com/)
 - [Hentaila](https://hentaila.com/)
-
-Consulta [docs/RESEARCH.md](docs/RESEARCH.md) para el análisis técnico y las decisiones de compatibilidad.
 
 ## Licencia
 
-MIT. Este proyecto no está afiliado con Nuvio, Stremio, Hentaila ni los hosts de vídeo.
+MIT. El proyecto no está afiliado con Nuvio, Stremio, AnimeAV1, Hentaila ni los hosts de vídeo.

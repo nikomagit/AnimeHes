@@ -37,6 +37,40 @@ export interface AddonStream {
   behaviorHints: StreamBehaviorHints;
 }
 
+export interface AddonMetaPreview {
+  id: string;
+  type: MediaType;
+  name: string;
+  poster?: string;
+  background?: string;
+  description?: string;
+  releaseInfo?: string;
+  genres?: string[];
+}
+
+export interface AddonVideo {
+  id: string;
+  title: string;
+  season: number;
+  episode: number;
+  released?: string;
+}
+
+export interface AddonMeta extends AddonMetaPreview {
+  videos?: AddonVideo[];
+  runtime?: string;
+  imdbRating?: string;
+  status?: string;
+}
+
 export interface StreamSearchService {
   getStreams(type: string, id: string): Promise<AddonStream[]>;
+}
+
+export interface CatalogService {
+  getCatalog(type: string, id: string, skip: number): Promise<AddonMetaPreview[]>;
+}
+
+export interface MetaService {
+  getMeta(type: string, id: string): Promise<AddonMeta | null>;
 }

@@ -1,19 +1,35 @@
+import { catalogDefinitions } from "./catalogs.js";
+
 export const manifest = Object.freeze({
   id: "org.nuvio.animehes",
-  version: "1.0.0",
+  version: "1.1.0",
   name: "AnimeHes",
   description:
-    "AnimeHes ofrece streams HTTP/HTTPS directos de Hentaila para Nuvio/Stremio, sin P2P.",
-  catalogs: [],
+    "AnimeHes ofrece catálogos y streams HTTP/HTTPS directos de AnimeAV1 y Hentaila, sin P2P.",
+  catalogs: catalogDefinitions.map((catalog) => ({
+    type: "series",
+    id: catalog.id,
+    name: catalog.name,
+    extra: [{ name: "skip", isRequired: false }],
+  })),
   resources: [
+    {
+      name: "catalog",
+      types: ["series"],
+    },
+    {
+      name: "meta",
+      types: ["movie", "series"],
+      idPrefixes: ["animehes:"],
+    },
     {
       name: "stream",
       types: ["movie", "series"],
-      idPrefixes: ["tt", "tmdb:", "kitsu:"],
+      idPrefixes: ["tt", "tmdb:", "kitsu:", "animehes:"],
     },
   ],
   types: ["movie", "series"],
-  idPrefixes: ["tt", "tmdb:", "kitsu:"],
+  idPrefixes: ["tt", "tmdb:", "kitsu:", "animehes:"],
   behaviorHints: {
     configurable: false,
     configurationRequired: false,

@@ -8,18 +8,38 @@ import {
 } from "./errors.js";
 import { manifest } from "./manifest.js";
 import { RemoteMetadataProvider } from "./metadata/client.js";
+import { AnimeAv1Client } from "./providers/animeav1/client.js";
 import { HentailaClient } from "./providers/hentaila/client.js";
-import { DirectStreamResolverRegistry } from "./providers/hentaila/resolvers.js";
-import { HentailaSearchService } from "./services/search.js";
-import type { StreamSearchService } from "./types.js";
+import { DirectStreamResolverRegistry } from "./providers/resolvers.js";
+import { ProviderCatalogService } from "./services/catalog.js";
+import { ProviderMetaService } from "./services/meta.js";
+import { ProviderSearchService } from "./services/search.js";
+import type { CatalogService, MetaService, StreamSearchService } from "./types.js";
 
 export interface AppDependencies {
   searchService?: StreamSearchService;
+  catalogService?: CatalogService;
+  metaService?: MetaService;
 }
 
 interface StreamParams {
   type: string;
   id: string;
+}
+
+interface CatalogParams extends StreamParams {
+  extra?: string;
+}
+
+interface CatalogQuery {
+  skip?: string;
+}
+
+function catalogSkip(query: string | undefined, extra: string | undefined): number {
+  const raw = query ?? (extra ? new URLSearchParams(extra).get("skip") ?? undefined : undefined);
+  if (raw === undefined || raw === "") return 0;
+  if (!/^\d+$/.test(raw)) throw new InvalidMediaRequestError("Invalid catalog skip value");
+  return Number(raw);
 }
 
 function publicError(error: AppError) {
@@ -54,13 +74,17 @@ export async function buildApp(
     return payload;
   });
 
+  const animeAv1 = new AnimeAv1Client(config);
   const hentaila = new HentailaClient(config);
-  const searchService = dependencies.searchService ?? new HentailaSearchService(
+  const providers = [animeAv1, hentaila];
+  const resolvers = new DirectStreamResolverRegistry(config);
+  const searchService = dependencies.searchService ?? new ProviderSearchService(
     config,
     new RemoteMetadataProvider(config),
-    hentaila,
-    new DirectStreamResolverRegistry(config),
+    providers.map((provider) => ({ provider, resolvers })),
   );
+  const catalogService = dependencies.catalogService ?? new ProviderCatalogService(providers);
+  const metaService = dependencies.metaService ?? new ProviderMetaService(providers);
 
   app.get("/", async (_request, reply) => {
     void reply.header("cache-control", "public, max-age=300");
@@ -70,7 +94,7 @@ export async function buildApp(
       protocol: "Stremio addon protocol (Nuvio compatible)",
       manifest: "/manifest.json",
       health: "/health",
-      source: "Hentaila",
+      sources: ["AnimeAV1", "Hentaila"],
       streaming: "Direct HTTP/HTTPS only",
       p2p: false,
     };
@@ -83,7 +107,40 @@ export async function buildApp(
 
   app.get("/health", async (_request, reply) => {
     void reply.header("cache-control", "no-store");
-    return { status: "ok", version: manifest.version, source: "Hentaila", p2p: false };
+    return { status: "ok", version: manifest.version, sources: ["AnimeAV1", "Hentaila"], p2p: false };
+  });
+
+  const serveCatalog = async (
+    request: { params: CatalogParams; query: CatalogQuery; log: FastifyInstance["log"] },
+    reply: { header(name: string, value: string): unknown },
+  ) => {
+    void reply.header("cache-control", "public, max-age=600, stale-if-error=3600");
+    try {
+      const skip = catalogSkip(request.query.skip, request.params.extra);
+      return { metas: await catalogService.getCatalog(request.params.type, request.params.id, skip) };
+    } catch (error) {
+      request.log.warn({ error, catalogId: request.params.id }, "Catalog request failed");
+      return { metas: [] };
+    }
+  };
+
+  app.get<{ Params: CatalogParams; Querystring: CatalogQuery }>(
+    "/catalog/:type/:id.json",
+    serveCatalog,
+  );
+  app.get<{ Params: CatalogParams; Querystring: CatalogQuery }>(
+    "/catalog/:type/:id/:extra.json",
+    serveCatalog,
+  );
+
+  app.get<{ Params: StreamParams }>("/meta/:type/:id.json", async (request, reply) => {
+    void reply.header("cache-control", "public, max-age=3600, stale-if-error=86400");
+    try {
+      return { meta: await metaService.getMeta(request.params.type, request.params.id) };
+    } catch (error) {
+      request.log.warn({ error, mediaId: request.params.id }, "Metadata request failed");
+      return { meta: null };
+    }
   });
 
   app.get<{ Params: StreamParams }>("/stream/:type/:id.json", async (request, reply) => {

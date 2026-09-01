@@ -6,6 +6,9 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     port: 7100,
     logLevel: "silent",
     hentailaBaseUrl: "https://hentaila.com",
+    hentailaCdnBaseUrl: "https://cdn.hentaila.com",
+    animeAv1BaseUrl: "https://animeav1.com",
+    animeAv1CdnBaseUrl: "https://cdn.animeav1.com",
     metadataBaseUrl: "https://v3-cinemeta.strem.io",
     tmdbBaseUrl: "https://api.themoviedb.org/3",
     tmdbLanguage: "en-US",
@@ -17,6 +20,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     maxStreams: 3,
     minMatchScore: 0.72,
     searchCacheTtlMs: 60_000,
+    catalogCacheTtlMs: 60_000,
     mediaCacheTtlMs: 60_000,
     metadataCacheTtlMs: 60_000,
     cacheMaxEntries: 50,
@@ -24,4 +28,26 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     playbackUserAgent: "Mozilla/5.0 TestBrowser/1.0",
     ...overrides,
   };
+}
+
+/** Encodes plain test data in the reference-table format used by SvelteKit. */
+export function sveltePayload(data: unknown): string {
+  const values: unknown[] = [];
+  const encode = (value: unknown): number => {
+    if (value === undefined) return -1;
+    const index = values.length;
+    values.push(null);
+    if (Array.isArray(value)) {
+      values[index] = value.map(encode);
+    } else if (value !== null && typeof value === "object") {
+      values[index] = Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, encode(item)]),
+      );
+    } else {
+      values[index] = value;
+    }
+    return index;
+  };
+  encode(data);
+  return JSON.stringify({ type: "data", nodes: [null, null, { type: "data", data: values }] });
 }

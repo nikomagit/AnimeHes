@@ -1,5 +1,5 @@
 import type { MediaMetadata } from "../types.js";
-import type { HentailaMedia, HentailaSearchResult } from "../providers/hentaila/types.js";
+import type { ProviderMedia, ProviderSearchResult } from "../providers/types.js";
 
 const GENERIC_SUFFIX = /\b(?:the\s+animation|animation|animated|ova)\b/gu;
 
@@ -74,7 +74,7 @@ export function mediaAliases(metadata: MediaMetadata): string[] {
   return [...new Set([metadata.title, ...metadata.aliases].map((item) => item.trim()).filter(Boolean))];
 }
 
-export function candidateAliases(media: HentailaMedia): string[] {
+export function candidateAliases(media: ProviderMedia): string[] {
   return [...new Set([media.title, ...Object.values(media.aka)].map((item) => item.trim()).filter(Boolean))];
 }
 
@@ -89,11 +89,11 @@ function yearFrom(date: string | undefined): number | undefined {
   return match ? Number(match[0]) : undefined;
 }
 
-export function preliminaryScore(metadata: MediaMetadata, result: HentailaSearchResult): number {
+export function preliminaryScore(metadata: MediaMetadata, result: ProviderSearchResult): number {
   return bestAliasScore(mediaAliases(metadata), [result.title]);
 }
 
-export function detailedScore(metadata: MediaMetadata, media: HentailaMedia): number {
+export function detailedScore(metadata: MediaMetadata, media: ProviderMedia): number {
   let score = bestAliasScore(mediaAliases(metadata), candidateAliases(media));
   const candidateYear = yearFrom(media.startDate);
   if (metadata.year !== undefined && candidateYear !== undefined) {

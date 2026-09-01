@@ -1,18 +1,33 @@
 {
   "id": "org.nuvio.animehes",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "AnimeHes",
-  "description": "AnimeHes ofrece streams HTTP/HTTPS directos de Hentaila para Nuvio/Stremio, sin P2P.",
-  "catalogs": [],
+  "description": "AnimeHes ofrece catálogos y streams HTTP/HTTPS directos de AnimeAV1 y Hentaila, sin P2P.",
+  "catalogs": [
+    { "type": "series", "id": "animeav1-popular", "name": "AnimeAV1 — Populares", "extra": [{ "name": "skip", "isRequired": false }] },
+    { "type": "series", "id": "animeav1-airing", "name": "AnimeAV1 — Al aire", "extra": [{ "name": "skip", "isRequired": false }] },
+    { "type": "series", "id": "hentaila-popular", "name": "Hentaila — Populares", "extra": [{ "name": "skip", "isRequired": false }] },
+    { "type": "series", "id": "hentaila-airing", "name": "Hentaila — Al aire", "extra": [{ "name": "skip", "isRequired": false }] },
+    { "type": "series", "id": "hentaila-uncensored", "name": "Hentaila — Sin Censura", "extra": [{ "name": "skip", "isRequired": false }] }
+  ],
   "resources": [
+    {
+      "name": "catalog",
+      "types": ["series"]
+    },
+    {
+      "name": "meta",
+      "types": ["movie", "series"],
+      "idPrefixes": ["animehes:"]
+    },
     {
       "name": "stream",
       "types": ["movie", "series"],
-      "idPrefixes": ["tt", "tmdb:", "kitsu:"]
+      "idPrefixes": ["tt", "tmdb:", "kitsu:", "animehes:"]
     }
   ],
   "types": ["movie", "series"],
-  "idPrefixes": ["tt", "tmdb:", "kitsu:"],
+  "idPrefixes": ["tt", "tmdb:", "kitsu:", "animehes:"],
   "behaviorHints": {
     "configurable": false,
     "configurationRequired": false,

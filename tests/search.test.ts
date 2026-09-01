@@ -24,10 +24,16 @@ describe("end-to-end search orchestration", () => {
       slug: "kaede-to-suzu-the-animation",
       aka: { "en-us": "Love Me: Kaede and Suzu The Animation" },
       startDate: "2022-03-25",
+      genres: [],
       episodes: [{ number: 1 }, { number: 2 }, { number: 3 }],
     };
     const provider: HentailaProvider = {
+      id: "hentaila",
+      name: "Hentaila",
+      baseUrl: "https://hentaila.com",
+      cdnBaseUrl: "https://cdn.hentaila.com",
       search: vi.fn().mockResolvedValue([{ id: "894", title: media.title, slug: media.slug }]),
+      getCatalog: vi.fn(),
       getMedia: vi.fn().mockResolvedValue(media),
       getEpisode: vi.fn().mockResolvedValue({
         media,
@@ -50,7 +56,7 @@ describe("end-to-end search orchestration", () => {
     expect(provider.getEpisode).toHaveBeenCalledWith(media.slug, 2);
     expect(streams).toHaveLength(1);
     expect(streams[0]).toMatchObject({
-      name: "AnimeHes\nVIP",
+      name: "AnimeHes\nHentaila • VIP",
       type: "hls",
       url: "https://cdn.hvidserv.com/m3u8/id",
       behaviorHints: {
@@ -70,8 +76,13 @@ describe("end-to-end search orchestration", () => {
       }),
     };
     const provider: HentailaProvider = {
+      id: "hentaila",
+      name: "Hentaila",
+      baseUrl: "https://hentaila.com",
+      cdnBaseUrl: "https://cdn.hentaila.com",
       search: vi.fn().mockResolvedValue([{ id: "1", title: "Love Colon", slug: "love-colon" }]),
-      getMedia: vi.fn().mockResolvedValue({ title: "Love Colon", slug: "love-colon", aka: {}, episodes: [{ number: 1 }] }),
+      getCatalog: vi.fn(),
+      getMedia: vi.fn().mockResolvedValue({ title: "Love Colon", slug: "love-colon", aka: {}, genres: [], episodes: [{ number: 1 }] }),
       getEpisode: vi.fn(),
     };
     const service = new HentailaSearchService(testConfig(), metadata, provider, { resolveAll: vi.fn() });

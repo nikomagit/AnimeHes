@@ -3,6 +3,9 @@ export interface AppConfig {
   port: number;
   logLevel: string;
   hentailaBaseUrl: string;
+  hentailaCdnBaseUrl: string;
+  animeAv1BaseUrl: string;
+  animeAv1CdnBaseUrl: string;
   metadataBaseUrl: string;
   tmdbBaseUrl: string;
   tmdbApiKey?: string;
@@ -16,6 +19,7 @@ export interface AppConfig {
   maxStreams: number;
   minMatchScore: number;
   searchCacheTtlMs: number;
+  catalogCacheTtlMs: number;
   mediaCacheTtlMs: number;
   metadataCacheTtlMs: number;
   cacheMaxEntries: number;
@@ -91,6 +95,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port,
     logLevel: env.LOG_LEVEL?.trim() || "info",
     hentailaBaseUrl: baseUrl(env, "HENTAILA_BASE_URL", "https://hentaila.com"),
+    hentailaCdnBaseUrl: baseUrl(env, "HENTAILA_CDN_BASE_URL", "https://cdn.hentaila.com"),
+    animeAv1BaseUrl: baseUrl(env, "ANIMEAV1_BASE_URL", "https://animeav1.com"),
+    animeAv1CdnBaseUrl: baseUrl(env, "ANIMEAV1_CDN_BASE_URL", "https://cdn.animeav1.com"),
     metadataBaseUrl: baseUrl(env, "METADATA_BASE_URL", "https://v3-cinemeta.strem.io"),
     tmdbBaseUrl: baseUrl(env, "TMDB_BASE_URL", "https://api.themoviedb.org/3"),
     ...(tmdbApiKey ? { tmdbApiKey } : {}),
@@ -107,12 +114,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ),
     maxSearchQueries: integer(env, "MAX_SEARCH_QUERIES", 4, 1, 8),
     maxCandidates: integer(env, "MAX_CANDIDATES", 5, 1, 12),
-    maxStreams: integer(env, "MAX_STREAMS", 3, 1, 8),
+    maxStreams: integer(env, "MAX_STREAMS", 8, 1, 16),
     minMatchScore: decimal(env, "MIN_MATCH_SCORE", 0.72, 0.5, 1),
     searchCacheTtlMs: integer(
       env,
       "SEARCH_CACHE_TTL_MS",
       60_000,
+      0,
+      24 * 60 * 60_000,
+    ),
+    catalogCacheTtlMs: integer(
+      env,
+      "CATALOG_CACHE_TTL_MS",
+      15 * 60_000,
       0,
       24 * 60 * 60_000,
     ),
@@ -132,7 +146,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ),
     cacheMaxEntries: integer(env, "CACHE_MAX_ENTRIES", 500, 1, 10_000),
     userAgent:
-      env.USER_AGENT?.trim() || "AnimeHes/1.0 (+self-hosted)",
+      env.USER_AGENT?.trim() || "AnimeHes/1.1 (+self-hosted)",
     playbackUserAgent:
       env.PLAYBACK_USER_AGENT?.trim() ||
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +

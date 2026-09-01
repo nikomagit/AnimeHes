@@ -11,5 +11,11 @@ services:
         value: 7100
       - key: HENTAILA_BASE_URL
         value: https://hentaila.com
+      - key: HENTAILA_CDN_BASE_URL
+        value: https://cdn.hentaila.com
+      - key: ANIMEAV1_BASE_URL
+        value: https://animeav1.com
+      - key: ANIMEAV1_CDN_BASE_URL
+        value: https://cdn.animeav1.com
       - key: TMDB_API_KEY
         sync: false
