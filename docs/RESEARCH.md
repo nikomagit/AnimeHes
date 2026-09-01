@@ -49,7 +49,7 @@ AnimeAV1 y Hentaila usan una aplicación SvelteKit con una estructura pública e
 
 El frontend traduce `order=popular` al campo de votos en orden descendente. En la prueba real de Hentaila, la respuesta de Sin Censura confirmó `orderKey: popular`, `uncensored: true`, 20 elementos por página y 16 páginas. Los votos de los primeros ocho elementos fueron descendentes: 40237, 38734, 35908, 26718, 25683, 18802, 17050 y 15348.
 
-La paginación del protocolo se convierte con `page = floor(skip / recordsPerPage) + 1`. En el manifest 1.2.1 esta navegación se expone únicamente para los tres catálogos de Hentaila.
+La paginación del protocolo se convierte con `page = floor(skip / recordsPerPage) + 1`. En el manifest 1.2.2 esta navegación se expone únicamente para los tres catálogos de Hentaila.
 
 ## AnimeAV1
 
@@ -110,7 +110,7 @@ Las pruebas automatizadas aíslan los tres proveedores con `Promise.allSettled`:
 
 ## Resultado de la validación en vivo
 
-- Manifest v1.2.1 con solo tres catálogos Hentaila, logo propio y `p2p: false`.
+- Manifest v1.2.2 con solo tres catálogos Hentaila, logo propio y `p2p: false`.
 - AnimeAV1 y JKAnime permanecen como proveedores internos de streams, sin catálogos anunciados.
 - Metadatos, póster, géneros y episodios de los proveedores cuando la fuente los publica.
 - AnimeAV1: 2 streams directos en el episodio probado.
