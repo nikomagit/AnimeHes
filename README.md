@@ -1,6 +1,6 @@
 # AnimeHes para Nuvio/Stremio
 
-AnimeHes es un addon de reproducción directa con dos proveedores independientes: [AnimeAV1](https://animeav1.com/) y [Hentaila](https://hentaila.com/). Incluye catálogos navegables, metadatos de series y episodios, búsqueda por IDs externos y streams HTTP/HTTPS.
+AnimeHes es un addon de reproducción directa con tres proveedores independientes: [AnimeAV1](https://animeav1.com/), [Hentaila](https://hentaila.com/) y [JKAnime](https://jkanime.net/). Expone únicamente los catálogos de Hentaila y busca streams HTTP/HTTPS en los tres proveedores.
 
 No usa torrents, magnet links, `infoHash`, P2P, TorBox, Real-Debrid ni descargas locales. El manifest declara `p2p: false`.
 
@@ -18,8 +18,6 @@ El plan gratuito de Render puede suspender el servidor por inactividad. La prime
 
 ## Catálogos
 
-- `animeav1-popular`: AnimeAV1 — Populares.
-- `animeav1-airing`: AnimeAV1 — Al aire.
 - `hentaila-popular`: Hentaila — Populares.
 - `hentaila-airing`: Hentaila — Al aire.
 - `hentaila-uncensored`: Hentaila — Sin Censura, usando el filtro oficial ordenado por popularidad.
@@ -33,10 +31,11 @@ Todos aceptan `skip` y traducen el desplazamiento a la página correspondiente d
 - Búsqueda de streams mediante IDs IMDb, TMDB y Kitsu.
 - Matching tolerante con títulos originales, alternativos, japoneses e ingleses, con año como señal adicional.
 - Resolución de temporadas separadas: convierte una petición como `temporada 3, episodio 1` en la entrada independiente correcta del proveedor.
-- AnimeAV1: HLS y MP4Upload actualmente compatibles.
+- AnimeAV1: HLS y MP4Upload actualmente compatibles; funciona solo como proveedor de streams.
 - Hentaila: VIP/HLS, YourUpload y MP4Upload actualmente compatibles.
+- JKAnime: reproductores públicos UM/UMV que exponen HLS directo; funciona solo como proveedor de streams.
 - Headers de reproducción en `behaviorHints.proxyHeaders` cuando el host los necesita.
-- Deduplicación por URL final y aislamiento de errores: una caída de un proveedor no bloquea al otro.
+- Deduplicación por URL final y aislamiento de errores: una caída de un proveedor no bloquea a los demás.
 - Caché temporal independiente para búsquedas, catálogos, metadatos y páginas de contenido.
 - Timeouts, límite de respuesta, validación de slugs/dominios y degradación segura a listas vacías.
 
@@ -63,6 +62,7 @@ Ejemplos de IDs de stream admitidos:
 /stream/series/kitsu:12345:2.json
 /stream/series/animehes:animeav1:slug:2.json
 /stream/series/animehes:hentaila:slug:2.json
+/stream/series/animehes:jkanime:slug:2.json
 ```
 
 Los dos últimos segmentos de IMDb/TMDB son temporada y episodio. En Kitsu, el último segmento es el episodio. Los IDs `animehes:` nacen de los catálogos y no necesitan consultar un servicio externo de metadatos.
@@ -87,7 +87,7 @@ Instala localmente:
 http://127.0.0.1:7100/manifest.json
 ```
 
-No necesitas `.env` para IMDb, Kitsu o los IDs internos. TMDB requiere una clave o token del usuario.
+No necesitas `.env` ni claves privadas para IMDb, TMDB, Kitsu o los IDs internos. Los IDs TMDB se resuelven mediante un addon público de metadatos compatible con Stremio; si ese servicio externo está caído, esas solicitudes pueden fallar temporalmente sin afectar los demás tipos de ID.
 
 ## Configuración
 
@@ -101,8 +101,9 @@ Copia `.env.example` como `.env` solo si necesitas cambiar valores. `.env` está
 | `ANIMEAV1_CDN_BASE_URL` | `https://cdn.animeav1.com` | Imágenes de AnimeAV1. |
 | `HENTAILA_BASE_URL` | `https://hentaila.com` | Origen público de Hentaila. |
 | `HENTAILA_CDN_BASE_URL` | `https://cdn.hentaila.com` | Imágenes de Hentaila. |
-| `TMDB_API_KEY` | vacío | Clave v3 opcional de TMDB. |
-| `TMDB_READ_ACCESS_TOKEN` | vacío | Token v4 opcional, alternativo. |
+| `JKANIME_BASE_URL` | `https://jkanime.net` | Origen público de JKAnime. |
+| `METADATA_BASE_URL` | `https://v3-cinemeta.strem.io` | Metadatos públicos para IMDb. |
+| `METADATA_FALLBACK_BASE_URL` | addon TMDB público | Metadatos públicos para IDs TMDB. |
 | `REQUEST_TIMEOUT_MS` | `10000` | Timeout de proveedores y hosts. |
 | `CATALOG_CACHE_TTL_MS` | `900000` | Caché de catálogos (15 min). |
 | `SEARCH_CACHE_TTL_MS` | `60000` | Caché de búsqueda. |
@@ -110,7 +111,7 @@ Copia `.env.example` como `.env` solo si necesitas cambiar valores. `.env` está
 | `MAX_STREAMS` | `8` | Máximo total de streams. |
 | `MIN_MATCH_SCORE` | `0.72` | Umbral conservador de matching. |
 
-Nunca publiques claves, tokens, cookies ni URLs temporales de vídeo en el repositorio o los logs.
+Nunca publiques cookies ni URLs temporales de vídeo en el repositorio o los logs.
 
 ## Docker
 
@@ -140,7 +141,7 @@ Nuvio / Stremio
 ```
 
 - `src/providers/svelte/`: cliente compartido para los datos públicos SvelteKit.
-- `src/providers/animeav1/` y `src/providers/hentaila/`: configuración aislada por proveedor.
+- `src/providers/animeav1/`, `src/providers/hentaila/` y `src/providers/jkanime/`: configuración aislada por proveedor.
 - `src/providers/resolvers.ts`: resolvers directos compartidos y específicos.
 - `src/metadata/`: IDs externos e internos y consultores de metadatos.
 - `src/services/`: catálogos, fichas, matching y búsqueda multi-proveedor.
@@ -157,7 +158,7 @@ npm test
 npm run build
 ```
 
-Los tests cubren los cinco catálogos, filtros y paginación, manifest, IDs internos y externos, búsqueda, episodios, resolvers, deduplicación, aislamiento de fallos y endpoints HTTP. Consulta [docs/RESEARCH.md](docs/RESEARCH.md) para las comprobaciones en vivo y decisiones técnicas.
+Los tests cubren los tres catálogos públicos, manifest, IDs internos y externos sin secretos, búsqueda, temporadas separadas, episodios, resolvers, deduplicación, aislamiento de los tres proveedores y endpoints HTTP. Consulta [docs/RESEARCH.md](docs/RESEARCH.md) para las comprobaciones en vivo y decisiones técnicas.
 
 ## Referencias
 
@@ -166,7 +167,8 @@ Los tests cubren los cinco catálogos, filtros y paginación, manifest, IDs inte
 - [Esquema oficial de Stream](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/stream.md)
 - [AnimeAV1](https://animeav1.com/)
 - [Hentaila](https://hentaila.com/)
+- [JKAnime](https://jkanime.net/)
 
 ## Licencia
 
-MIT. El proyecto no está afiliado con Nuvio, Stremio, AnimeAV1, Hentaila ni los hosts de vídeo.
+MIT. El proyecto no está afiliado con Nuvio, Stremio, AnimeAV1, Hentaila, JKAnime ni los hosts de vídeo.

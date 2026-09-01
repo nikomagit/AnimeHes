@@ -1,6 +1,6 @@
 # Investigación y decisiones técnicas
 
-Revisión en vivo realizada el 31 de agosto de 2026. AnimeAV1, Hentaila y sus hosts son servicios externos y pueden cambiar. Los tests con fixtures protegen el contrato conocido; un cambio incompatible del proveedor requerirá actualizar el cliente o el resolver afectado.
+Revisión en vivo actualizada el 1 de septiembre de 2026. AnimeAV1, Hentaila, JKAnime y sus hosts son servicios externos y pueden cambiar. Los tests con fixtures protegen el contrato conocido; un cambio incompatible del proveedor requerirá actualizar el cliente o el resolver afectado.
 
 ## Contrato Nuvio/Stremio
 
@@ -33,9 +33,9 @@ Fuentes de referencia:
 - [Stream del SDK de Stremio](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/stream.md)
 - [Manifest del SDK de Stremio](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/manifest.md)
 
-## API pública usada por los proveedores
+## APIs públicas usadas por AnimeAV1 y Hentaila
 
-Ambos sitios usan una aplicación SvelteKit con una estructura pública equivalente. AnimeHes consulta las rutas `__data.json` utilizadas por el frontend y decodifica su tabla de referencias JSON sin ejecutar JavaScript remoto.
+AnimeAV1 y Hentaila usan una aplicación SvelteKit con una estructura pública equivalente. AnimeHes consulta las rutas `__data.json` utilizadas por el frontend y decodifica su tabla de referencias JSON sin ejecutar JavaScript remoto.
 
 | Función | Ruta/consulta observada |
 |---|---|
@@ -49,7 +49,7 @@ Ambos sitios usan una aplicación SvelteKit con una estructura pública equivale
 
 El frontend traduce `order=popular` al campo de votos en orden descendente. En la prueba real de Hentaila, la respuesta de Sin Censura confirmó `orderKey: popular`, `uncensored: true`, 20 elementos por página y 16 páginas. Los votos de los primeros ocho elementos fueron descendentes: 40237, 38734, 35908, 26718, 25683, 18802, 17050 y 15348.
 
-La paginación del protocolo se convierte con `page = floor(skip / recordsPerPage) + 1`. Se verificó que `skip=20` devuelve una segunda página distinta en los cinco catálogos.
+La paginación del protocolo se convierte con `page = floor(skip / recordsPerPage) + 1`. En el manifest 1.2.0 esta navegación se expone únicamente para los tres catálogos de Hentaila.
 
 ## AnimeAV1
 
@@ -76,6 +76,12 @@ La integración previa se mantuvo y se migró al cliente compartido. Sus búsque
 
 No se incluyen mirrors que no entregan una URL directa verificable o que parecen depender de sesión/IP. Si un servidor niega acceso, expira o cambia de formato, se omite sin afectar los demás.
 
+## JKAnime
+
+JKAnime se integra únicamente como fuente de streams, sin catálogos públicos en el manifest. La búsqueda usa la ruta pública `GET /buscar?q={título}`; la ficha aporta título alternativo, tipo, año, géneros y cantidad de episodios. Los episodios se consultan con `/{slug}/{episodio}/`.
+
+Solo se aceptan los reproductores públicos `UM` y `UMV` cuando su HTML expone una playlist HLS directa en un dominio permitido de `playmudos.com`. Los reproductores que no entregan una URL reproducible de forma pública se omiten. En la validación real, UM y UMV condujeron a la misma playlist y la deduplicación conservó una sola fuente. No se ejecuta JavaScript remoto, no se intenta sortear protección y no se usan cookies autenticadas.
+
 ## Matching, IDs y metadatos
 
 Los elementos de catálogo usan `animehes:{provider}:{slug}` y los episodios `animehes:{provider}:{slug}:{episode}`. Esto evita una búsqueda redundante cuando Nuvio navega desde AnimeHes.
@@ -83,8 +89,10 @@ Los elementos de catálogo usan `animehes:{provider}:{slug}` y los episodios `an
 Para solicitudes externas:
 
 - IMDb: Cinemeta y fallback público de sugerencias para título y año.
-- TMDB: API oficial mediante `TMDB_API_KEY` o `TMDB_READ_ACCESS_TOKEN`, incluyendo títulos alternativos.
+- TMDB: addon público de metadatos Stremio sin clave privada, conservando temporadas, episodios y alias cuando están disponibles.
 - Kitsu: API pública de Kitsu, con títulos canónicos y alternativos.
+
+El fallback TMDB usa el contrato público documentado por el proyecto [TMDB Addon](https://github.com/mrcanelas/tmdb-addon/blob/main/docs/api.md). Su disponibilidad es externa a AnimeHes y no se envían credenciales del usuario.
 
 El matching normaliza Unicode, diacríticos, mayúsculas, puntuación, guiones y espacios. Combina similitud de tokens y bigramas, compara alias y usa el año como señal adicional. Si ningún candidato supera `MIN_MATCH_SCORE`, devuelve cero streams para evitar falsos positivos.
 
@@ -98,23 +106,33 @@ El matching normaliza Unicode, diacríticos, mayúsculas, puntuación, guiones y
 - Slugs, esquemas y hosts se validan antes de usar una URL.
 - No se ejecuta código remoto ni se intenta evitar controles de acceso.
 
-Las pruebas reales incluyeron dos servidores locales con un origen configurado a un puerto inaccesible. Con AnimeAV1 caído, Hentaila entregó 20 elementos y 3 streams; con Hentaila caído, AnimeAV1 entregó 20 elementos y 2 streams.
+Las pruebas automatizadas aíslan los tres proveedores con `Promise.allSettled`: cualquiera de AnimeAV1, Hentaila o JKAnime puede fallar sin bloquear los streams de los otros dos.
 
 ## Resultado de la validación en vivo
 
-- Manifest v1.1.1 con cinco catálogos y `p2p: false`.
-- Primera y segunda página de los cinco catálogos, 20 elementos por página.
-- Metadatos, póster, fondo, géneros, estado y episodios de ambas fuentes.
+- Manifest v1.2.0 con solo tres catálogos Hentaila y `p2p: false`.
+- AnimeAV1 y JKAnime permanecen como proveedores internos de streams, sin catálogos anunciados.
+- Metadatos, póster, géneros y episodios de los proveedores cuando la fuente los publica.
 - AnimeAV1: 2 streams directos en el episodio probado.
 - Hentaila: 3 streams directos en el episodio probado.
-- Resolución por IMDb comprobada para ambos proveedores.
+- JKAnime: búsqueda, ficha, episodio y playlist HLS directa comprobados.
+- Los HLS finales de los tres proveedores respondieron `200` y comenzaron con `#EXTM3U`.
+- Los IDs TMDB y Kitsu se probaron sin claves con un episodio real de One Piece.
+- Resolución por IMDb comprobada en paralelo; cada proveedor devuelve únicamente coincidencias suficientemente sólidas.
 - HLS y MP4 finales respondieron correctamente con los headers declarados.
 - Ninguna respuesta inspeccionada contenía magnets, trackers ni `infoHash`.
 
 ## Temporadas publicadas como títulos independientes
 
-Nuvio puede solicitar un episodio con un ID unificado, por ejemplo `IMDb:temporada:episodio`, aunque AnimeAV1 publique cada temporada como una ficha diferente. El resolver obtiene el año y la cantidad de episodios de la temporada desde Cinemeta o TMDB, reconoce indicadores como `2nd Season` y `Third Season`, descarta películas/OVA y valida los candidatos antes de seleccionar el episodio relativo.
+Nuvio puede solicitar un episodio con un ID unificado, por ejemplo `IMDb:temporada:episodio`, aunque AnimeAV1 o JKAnime publiquen cada temporada como una ficha diferente. El resolver obtiene el año y la cantidad de episodios de la temporada desde fuentes públicas compatibles con Stremio, reconoce indicadores como `2nd Season` y `Third Season`, descarta películas/OVA y valida los candidatos antes de seleccionar el episodio relativo.
 
-La regresión se comprobó con las cuatro temporadas de Haikyuu: la temporada 1 selecciona `Haikyuu!!`, la 2 `Second Season`, la 3 `Karasuno vs. Shiratorizawa` y la 4 `To the Top`. Un candidato sin evidencia suficiente se rechaza para evitar reproducir silenciosamente la primera temporada.
+La regresión se comprobó con `tt3398540:1:1` hasta `tt3398540:4:1`: la temporada 1 selecciona `Haikyuu!!`, la 2 `Second Season`, la 3 `Karasuno vs. Shiratorizawa`/`Third Season` y la 4 `To the Top`. JKAnime participó correctamente en T1, T2 y T3; T4 se obtuvo de AnimeAV1 porque la publicación actual de JKAnime divide esa temporada en dos cours y su ficha no coincide con la cantidad total de episodios entregada por los metadatos. La política conservadora la omite antes que mapear episodios de forma incierta.
+
+## Limitaciones actuales
+
+- Los enlaces de vídeo pueden caducar y se resuelven en el momento de solicitar `/stream`.
+- JKAnime UM y UMV pueden apuntar al mismo HLS; se devuelve una sola entrada después de deduplicar.
+- La resolución de IDs TMDB depende de la disponibilidad del addon público de metadatos configurado.
+- Si un proveedor divide una temporada en cours sin una numeración inequívoca de episodios absolutos, AnimeHes puede omitir ese proveedor para evitar reproducir el episodio equivocado.
 
 La comprobación confirma el flujo al momento indicado, pero no garantiza la disponibilidad futura de contenido o mirrors de terceros.

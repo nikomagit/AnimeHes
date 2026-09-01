@@ -25,7 +25,7 @@ export function parseProviderMediaId(rawId: string): ParsedProviderMediaId | nul
   if (parts.length < 3 || parts.length > 4) throw new InvalidMediaRequestError("Malformed AnimeHes ID");
   const provider = parts[1];
   const slug = parts[2];
-  if ((provider !== "animeav1" && provider !== "hentaila") || !slug || !SAFE_SLUG.test(slug)) {
+  if ((provider !== "animeav1" && provider !== "hentaila" && provider !== "jkanime") || !slug || !SAFE_SLUG.test(slug)) {
     throw new InvalidMediaRequestError("Malformed AnimeHes provider ID");
   }
   if (parts.length === 3) return { provider, slug };

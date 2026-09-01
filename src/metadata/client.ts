@@ -1,6 +1,5 @@
 import type { AppConfig } from "../config.js";
 import {
-  AppConfigurationError,
   MetadataUnavailableError,
   UpstreamHttpError,
   UpstreamPayloadError,
@@ -38,12 +37,6 @@ function uniqueStrings(values: unknown[]): string[] {
   return [...new Set(values.map(text).filter((value): value is string => Boolean(value)))];
 }
 
-function alternativeTitles(payload: Record<string, unknown> | undefined): string[] {
-  const group = record(payload?.alternative_titles);
-  const values = Array.isArray(group?.titles) ? group.titles : Array.isArray(group?.results) ? group.results : [];
-  return values.map(record).map((item) => text(item?.title)).filter((item): item is string => Boolean(item));
-}
-
 export interface MetadataProvider {
   resolve(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata>;
 }
@@ -64,7 +57,7 @@ export class RemoteMetadataProvider implements MetadataProvider {
       parsed.provider === "kitsu"
         ? this.resolveKitsu(type, parsed)
         : parsed.provider === "tmdb"
-          ? this.resolveTmdb(type, parsed)
+          ? this.resolvePublicTmdb(type, parsed)
           : this.resolveImdb(type, parsed),
     );
   }
@@ -79,47 +72,72 @@ export class RemoteMetadataProvider implements MetadataProvider {
   }
 
   private async resolveImdb(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata> {
-    const url = new URL(
-      `/meta/${type}/${encodeURIComponent(parsed.baseId)}.json`,
-      `${this.config.metadataBaseUrl}/`,
-    );
     try {
-      const payload = record(JSON.parse(await this.request(url, this.options("Cinemeta"))));
-      const meta = record(payload?.meta);
-      const title = text(meta?.name);
-      if (title) {
-        const rawAliases = Array.isArray(meta?.aliases) ? meta.aliases : [];
-        const aliases = uniqueStrings([title, ...rawAliases]);
-        const videos = Array.isArray(meta?.videos) ? (meta.videos as CinemetaVideo[]) : [];
-        const episodeVideo = videos.find((video) => {
-          const exactId = text(video.id) === `${parsed.baseId}:${parsed.season}:${parsed.episode}`;
-          return exactId ||
-            (Number(video.season) === parsed.season && Number(video.episode) === parsed.episode);
-        });
-        const episodeTitle = text(episodeVideo?.name ?? episodeVideo?.title);
-        const seasonVideos = parsed.season === undefined
-          ? []
-          : videos.filter((video) => Number(video.season) === parsed.season);
-        const seasonYear = yearFrom(episodeVideo?.released ?? seasonVideos[0]?.released);
-        const seasonEpisodeCount = seasonVideos.length || undefined;
-        const year = yearFrom(meta?.year ?? meta?.releaseInfo ?? meta?.released);
-        return {
-          ...parsed,
-          type,
-          title,
-          aliases,
-          ...(year === undefined ? {} : { year }),
-          ...(episodeTitle ? { episodeTitle } : {}),
-          ...(seasonYear === undefined ? {} : { seasonYear }),
-          ...(seasonEpisodeCount === undefined ? {} : { seasonEpisodeCount }),
-        };
-      }
+      return await this.resolveStremioMeta(
+        type,
+        parsed,
+        this.config.metadataBaseUrl,
+        parsed.baseId,
+        "Cinemeta",
+      );
     } catch (error) {
       if (!(error instanceof UpstreamHttpError && error.upstreamStatus === 404)) {
         // Fall through to IMDb's public suggestion endpoint.
       }
     }
     return this.resolveImdbSuggestion(type, parsed);
+  }
+
+  private async resolveStremioMeta(
+    type: MediaType,
+    parsed: ParsedMediaId,
+    baseUrl: string,
+    resourceId: string,
+    upstream: string,
+  ): Promise<MediaMetadata> {
+    const url = new URL(
+      `/meta/${type}/${encodeURIComponent(resourceId)}.json`,
+      `${baseUrl}/`,
+    );
+    let payload: Record<string, unknown> | undefined;
+    try {
+      payload = record(JSON.parse(await this.request(url, this.options(upstream))));
+    } catch (error) {
+      if (error instanceof UpstreamHttpError) throw error;
+      throw new UpstreamPayloadError(upstream, "invalid JSON response");
+    }
+    const meta = record(payload?.meta);
+    const title = text(meta?.name);
+    if (!title) throw new MetadataUnavailableError();
+    const rawAliases = Array.isArray(meta?.aliases) ? meta.aliases : [];
+    const aliases = uniqueStrings([title, meta?.originalName, ...rawAliases]);
+    const videos = Array.isArray(meta?.videos) ? (meta.videos as CinemetaVideo[]) : [];
+    const episodeVideo = videos.find((video) => {
+      const exactId = text(video.id) === `${resourceId}:${parsed.season}:${parsed.episode}`;
+      return exactId ||
+        (Number(video.season) === parsed.season && Number(video.episode) === parsed.episode);
+    });
+    const episodeTitle = text(episodeVideo?.name ?? episodeVideo?.title);
+    const seasonVideos = parsed.season === undefined
+      ? []
+      : videos.filter((video) => Number(video.season) === parsed.season);
+    const seasonYear = yearFrom(episodeVideo?.released ?? seasonVideos[0]?.released);
+    const seasonEpisodeCount = seasonVideos.length || undefined;
+    const rawSeasons = Array.isArray(meta?.seasons) ? meta.seasons.map(record) : [];
+    const seasonRecord = rawSeasons.find((item) => Number(item?.season) === parsed.season);
+    const seasonTitle = text(seasonRecord?.name ?? seasonRecord?.title);
+    const year = yearFrom(meta?.year ?? meta?.releaseInfo ?? meta?.released);
+    return {
+      ...parsed,
+      type,
+      title,
+      aliases,
+      ...(year === undefined ? {} : { year }),
+      ...(episodeTitle ? { episodeTitle } : {}),
+      ...(seasonTitle ? { seasonTitle } : {}),
+      ...(seasonYear === undefined ? {} : { seasonYear }),
+      ...(seasonEpisodeCount === undefined ? {} : { seasonEpisodeCount }),
+    };
   }
 
   private async resolveImdbSuggestion(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata> {
@@ -180,98 +198,21 @@ export class RemoteMetadataProvider implements MetadataProvider {
     }
   }
 
-  private async resolveTmdb(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata> {
-    if (!this.config.tmdbReadAccessToken && !this.config.tmdbApiKey) {
-      throw new AppConfigurationError(
-        "TMDB IDs require TMDB_API_KEY or TMDB_READ_ACCESS_TOKEN on the addon server",
-      );
-    }
-    const resource = type === "movie" ? "movie" : "tv";
-    const url = new URL(`${resource}/${encodeURIComponent(parsed.baseId)}`, `${this.config.tmdbBaseUrl}/`);
-    url.searchParams.set("language", this.config.tmdbLanguage);
-    url.searchParams.set("append_to_response", "alternative_titles");
-    if (!this.config.tmdbReadAccessToken && this.config.tmdbApiKey) {
-      url.searchParams.set("api_key", this.config.tmdbApiKey);
-    }
-
-    let body: string;
+  private async resolvePublicTmdb(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata> {
     try {
-      body = await this.request(url, {
-        ...this.options("TMDB metadata"),
-        headers: {
-          accept: "application/json",
-          "user-agent": this.config.userAgent,
-          ...(this.config.tmdbReadAccessToken
-            ? { authorization: `Bearer ${this.config.tmdbReadAccessToken}` }
-            : {}),
-        },
-      });
+      return await this.resolveStremioMeta(
+        type,
+        parsed,
+        this.config.metadataFallbackBaseUrl,
+        `tmdb:${parsed.baseId}`,
+        "Public metadata",
+      );
     } catch (error) {
+      if (error instanceof MetadataUnavailableError) throw error;
       if (error instanceof UpstreamHttpError && error.upstreamStatus === 404) {
         throw new MetadataUnavailableError();
       }
       throw error;
-    }
-
-    let payload: Record<string, unknown> | undefined;
-    try {
-      payload = record(JSON.parse(body));
-    } catch {
-      throw new UpstreamPayloadError("TMDB metadata", "invalid JSON response");
-    }
-    const title = text(type === "movie" ? payload?.title : payload?.name);
-    const originalTitle = text(type === "movie" ? payload?.original_title : payload?.original_name);
-    if (!title && !originalTitle) throw new MetadataUnavailableError();
-    const aliases = uniqueStrings([title, originalTitle, ...alternativeTitles(payload)]);
-    const year = yearFrom(type === "movie" ? payload?.release_date : payload?.first_air_date);
-    const seasonMetadata = type === "series" && parsed.season !== undefined
-      ? await this.resolveTmdbSeason(parsed.baseId, parsed.season)
-      : {};
-    return {
-      ...parsed,
-      type,
-      title: title ?? originalTitle!,
-      aliases,
-      ...(year === undefined ? {} : { year }),
-      ...seasonMetadata,
-    };
-  }
-
-  private async resolveTmdbSeason(
-    baseId: string,
-    season: number,
-  ): Promise<Pick<MediaMetadata, "seasonTitle" | "seasonYear" | "seasonEpisodeCount">> {
-    const url = new URL(
-      `tv/${encodeURIComponent(baseId)}/season/${season}`,
-      `${this.config.tmdbBaseUrl}/`,
-    );
-    url.searchParams.set("language", this.config.tmdbLanguage);
-    if (!this.config.tmdbReadAccessToken && this.config.tmdbApiKey) {
-      url.searchParams.set("api_key", this.config.tmdbApiKey);
-    }
-    try {
-      const payload = record(JSON.parse(await this.request(url, {
-        ...this.options("TMDB season metadata"),
-        headers: {
-          accept: "application/json",
-          "user-agent": this.config.userAgent,
-          ...(this.config.tmdbReadAccessToken
-            ? { authorization: `Bearer ${this.config.tmdbReadAccessToken}` }
-            : {}),
-        },
-      })));
-      const seasonTitle = text(payload?.name);
-      const seasonYear = yearFrom(payload?.air_date);
-      const episodes = Array.isArray(payload?.episodes) ? payload.episodes : [];
-      const seasonEpisodeCount = episodes.length || undefined;
-      return {
-        ...(seasonTitle ? { seasonTitle } : {}),
-        ...(seasonYear === undefined ? {} : { seasonYear }),
-        ...(seasonEpisodeCount === undefined ? {} : { seasonEpisodeCount }),
-      };
-    } catch {
-      // The base metadata remains useful if a season page is temporarily unavailable.
-      return {};
     }
   }
 }

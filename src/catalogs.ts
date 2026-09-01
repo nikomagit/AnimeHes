@@ -8,8 +8,6 @@ export interface CatalogDefinition {
 }
 
 export const catalogDefinitions: readonly CatalogDefinition[] = Object.freeze([
-  { id: "animeav1-popular", name: "AnimeAV1 — Populares", provider: "animeav1", kind: "popular" },
-  { id: "animeav1-airing", name: "AnimeAV1 — Al aire", provider: "animeav1", kind: "airing" },
   { id: "hentaila-popular", name: "Hentaila — Populares", provider: "hentaila", kind: "popular" },
   { id: "hentaila-airing", name: "Hentaila — Al aire", provider: "hentaila", kind: "airing" },
   { id: "hentaila-uncensored", name: "Hentaila — Sin Censura", provider: "hentaila", kind: "uncensored" },

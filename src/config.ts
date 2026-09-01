@@ -6,11 +6,9 @@ export interface AppConfig {
   hentailaCdnBaseUrl: string;
   animeAv1BaseUrl: string;
   animeAv1CdnBaseUrl: string;
+  jkAnimeBaseUrl: string;
   metadataBaseUrl: string;
-  tmdbBaseUrl: string;
-  tmdbApiKey?: string;
-  tmdbReadAccessToken?: string;
-  tmdbLanguage: string;
+  metadataFallbackBaseUrl: string;
   requestTimeoutMs: number;
   metadataTimeoutMs: number;
   maxResponseBytes: number;
@@ -25,13 +23,6 @@ export interface AppConfig {
   cacheMaxEntries: number;
   userAgent: string;
   playbackUserAgent: string;
-}
-
-function optionalSecret(env: NodeJS.ProcessEnv, name: string): string | undefined {
-  const value = env[name]?.trim();
-  if (!value) return undefined;
-  if (/[\r\n]/.test(value)) throw new Error(`${name} contains invalid characters`);
-  return value;
 }
 
 function integer(
@@ -83,12 +74,6 @@ function baseUrl(env: NodeJS.ProcessEnv, name: string, fallback: string): string
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const port = integer(env, "PORT", 7100, 1, 65_535);
-  const tmdbApiKey = optionalSecret(env, "TMDB_API_KEY");
-  const tmdbReadAccessToken = optionalSecret(env, "TMDB_READ_ACCESS_TOKEN");
-  const tmdbLanguage = env.TMDB_LANGUAGE?.trim() || "en-US";
-  if (!/^[a-z]{2}(?:-[A-Z]{2})?$/.test(tmdbLanguage)) {
-    throw new Error("TMDB_LANGUAGE must look like en or en-US");
-  }
 
   return {
     host: env.HOST?.trim() || "0.0.0.0",
@@ -98,11 +83,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     hentailaCdnBaseUrl: baseUrl(env, "HENTAILA_CDN_BASE_URL", "https://cdn.hentaila.com"),
     animeAv1BaseUrl: baseUrl(env, "ANIMEAV1_BASE_URL", "https://animeav1.com"),
     animeAv1CdnBaseUrl: baseUrl(env, "ANIMEAV1_CDN_BASE_URL", "https://cdn.animeav1.com"),
+    jkAnimeBaseUrl: baseUrl(env, "JKANIME_BASE_URL", "https://jkanime.net"),
     metadataBaseUrl: baseUrl(env, "METADATA_BASE_URL", "https://v3-cinemeta.strem.io"),
-    tmdbBaseUrl: baseUrl(env, "TMDB_BASE_URL", "https://api.themoviedb.org/3"),
-    ...(tmdbApiKey ? { tmdbApiKey } : {}),
-    ...(tmdbReadAccessToken ? { tmdbReadAccessToken } : {}),
-    tmdbLanguage,
+    metadataFallbackBaseUrl: baseUrl(
+      env,
+      "METADATA_FALLBACK_BASE_URL",
+      "https://94c8cb9f702d-tmdb-addon.baby-beamup.club",
+    ),
     requestTimeoutMs: integer(env, "REQUEST_TIMEOUT_MS", 10_000, 1_000, 60_000),
     metadataTimeoutMs: integer(env, "METADATA_TIMEOUT_MS", 6_000, 1_000, 60_000),
     maxResponseBytes: integer(
@@ -146,7 +133,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ),
     cacheMaxEntries: integer(env, "CACHE_MAX_ENTRIES", 500, 1, 10_000),
     userAgent:
-      env.USER_AGENT?.trim() || "AnimeHes/1.1 (+self-hosted)",
+      env.USER_AGENT?.trim() || "AnimeHes/1.2 (+self-hosted)",
     playbackUserAgent:
       env.PLAYBACK_USER_AGENT?.trim() ||
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +

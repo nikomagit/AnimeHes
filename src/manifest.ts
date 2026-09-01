@@ -2,10 +2,10 @@ import { catalogDefinitions } from "./catalogs.js";
 
 export const manifest = Object.freeze({
   id: "org.nuvio.animehes",
-  version: "1.1.1",
+  version: "1.2.0",
   name: "AnimeHes",
   description:
-    "AnimeHes ofrece catálogos y streams HTTP/HTTPS directos de AnimeAV1 y Hentaila, sin P2P.",
+    "Catálogos de Hentaila y streams HTTP/HTTPS directos de Hentaila, AnimeAV1 y JKAnime, sin P2P.",
   catalogs: catalogDefinitions.map((catalog) => ({
     type: "series",
     id: catalog.id,

@@ -64,7 +64,8 @@ export class DirectStreamResolverRegistry implements DirectStreamResolver {
   }
 
   private isSupported(embed: ProviderEmbed): boolean {
-    return ["vip", "hls", "yourupload", "mp4upload"].includes(embed.server.toLocaleLowerCase("en"));
+    const server = embed.server.toLocaleLowerCase("en");
+    return ["vip", "hls", "yourupload", "mp4upload"].includes(server) || server.startsWith("jkanime ");
   }
 
   private async resolve(embed: ProviderEmbed, episodePageUrl: string): Promise<ResolvedDirectStream | null> {
@@ -72,6 +73,7 @@ export class DirectStreamResolverRegistry implements DirectStreamResolver {
     if (server === "vip" || server === "hls") return this.resolveHls(embed);
     if (server === "yourupload") return this.resolveYourUpload(embed, episodePageUrl);
     if (server === "mp4upload") return this.resolveMp4Upload(embed, episodePageUrl);
+    if (server.startsWith("jkanime ")) return this.resolveJkAnime(embed, episodePageUrl);
     return null;
   }
 
@@ -120,6 +122,27 @@ export class DirectStreamResolverRegistry implements DirectStreamResolver {
     const url = match && validatedUrl(match, ["mp4upload.com"], /\.mp4$/i);
     if (!url) return null;
     return { server: embed.server, language: embed.language, url, type: "mp4", label: "MP4", headers: directHeaders(source, this.config.playbackUserAgent) };
+  }
+
+  private async resolveJkAnime(embed: ProviderEmbed, episodePageUrl: string): Promise<ResolvedDirectStream | null> {
+    const source = new URL(embed.url);
+    const expectedHost = new URL(this.config.jkAnimeBaseUrl).hostname;
+    if (source.hostname !== expectedHost || !/^\/jkplayer\/umv?\/?$/i.test(source.pathname)) return null;
+    const body = await this.request(source, this.pageOptions("JKAnime player", episodePageUrl));
+    const match = firstMatch(body, [
+      /\burl\s*:\s*["'](https?:\\?\/\\?\/[^"']+?\.m3u8(?:\?[^"']*)?)["']/i,
+      /(?:file|src)\s*:\s*["'](https?:\\?\/\\?\/[^"']+?\.m3u8(?:\?[^"']*)?)["']/i,
+    ]);
+    const url = match && validatedUrl(match, ["playmudos.com"], /\.m3u8$/i);
+    if (!url) return null;
+    return {
+      server: embed.server,
+      language: embed.language,
+      url,
+      type: "hls",
+      label: "HLS",
+      headers: directHeaders(source, this.config.playbackUserAgent),
+    };
   }
 
   private pageOptions(upstream: string, referer: string) {

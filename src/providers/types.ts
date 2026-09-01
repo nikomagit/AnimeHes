@@ -1,4 +1,4 @@
-export type ProviderId = "animeav1" | "hentaila";
+export type ProviderId = "animeav1" | "hentaila" | "jkanime";
 export type ProviderCatalogKind = "popular" | "airing" | "uncensored";
 
 export interface ProviderCategory {

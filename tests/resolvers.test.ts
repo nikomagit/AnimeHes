@@ -45,4 +45,25 @@ describe("direct video resolvers", () => {
       { server: "YourUpload", language: "SUB", url: "https://www.yourupload.com/embed/example" },
     ], "https://hentaila.com/media/title/1")).resolves.toEqual([]);
   });
+
+  it("resolves and deduplicates JKAnime public UM/UMV HLS players", async () => {
+    const request: FetchText = vi.fn().mockResolvedValue(`
+      video: { url: 'https://nika.playmudos.com/media/title/master.m3u8?token=public', type: 'customHls' }
+    `);
+    const registry = new DirectStreamResolverRegistry(testConfig({ maxStreams: 8 }), request);
+    const result = await registry.resolveAll([
+      { server: "JKAnime UM", language: "SUB-ES", url: "https://jkanime.net/jkplayer/um/?u=one" },
+      { server: "JKAnime UMV", language: "SUB-ES", url: "https://jkanime.net/jkplayer/umv/?u=two" },
+      { server: "JKAnime UM", language: "SUB-ES", url: "https://evil.example/jkplayer/um/?u=blocked" },
+    ], "https://jkanime.net/haikyuu-third-season/1/");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      server: "JKAnime UM",
+      language: "SUB-ES",
+      type: "hls",
+      url: "https://nika.playmudos.com/media/title/master.m3u8?token=public",
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
 });

@@ -18,7 +18,7 @@ const media = {
 function provider(id: ProviderId, failure = false): DirectMediaProvider {
   return {
     id,
-    name: id === "animeav1" ? "AnimeAV1" : "Hentaila",
+    name: id === "animeav1" ? "AnimeAV1" : id === "jkanime" ? "JKAnime" : "Hentaila",
     baseUrl: `https://${id}.example`,
     cdnBaseUrl: `https://cdn.${id}.example`,
     search: failure
@@ -61,26 +61,39 @@ function resolver(url = "https://video.example/master.m3u8"): DirectStreamResolv
 }
 
 describe("multi-provider stream orchestration", () => {
-  it("keeps AnimeAV1 working when Hentaila fails", async () => {
+  it("keeps AnimeAV1 working when Hentaila and JKAnime fail", async () => {
     const anime = provider("animeav1");
     const hentai = provider("hentaila", true);
     const service = new ProviderSearchService(testConfig(), metadata, [
       { provider: anime, resolvers: resolver() },
       { provider: hentai, resolvers: resolver("https://other.example/master.m3u8") },
+      { provider: provider("jkanime", true), resolvers: resolver("https://jk.example/master.m3u8") },
     ]);
     const streams = await service.getStreams("series", "tt0388629:1:1176");
     expect(streams).toHaveLength(1);
     expect(streams[0]?.name).toContain("AnimeAV1");
   });
 
-  it("keeps Hentaila working when AnimeAV1 fails", async () => {
+  it("keeps Hentaila working when AnimeAV1 and JKAnime fail", async () => {
     const service = new ProviderSearchService(testConfig(), metadata, [
       { provider: provider("animeav1", true), resolvers: resolver() },
       { provider: provider("hentaila"), resolvers: resolver() },
+      { provider: provider("jkanime", true), resolvers: resolver("https://jk.example/master.m3u8") },
     ]);
     const streams = await service.getStreams("series", "tt0388629:1:1176");
     expect(streams).toHaveLength(1);
     expect(streams[0]?.name).toContain("Hentaila");
+  });
+
+  it("keeps JKAnime working when AnimeAV1 and Hentaila fail", async () => {
+    const service = new ProviderSearchService(testConfig(), metadata, [
+      { provider: provider("animeav1", true), resolvers: resolver() },
+      { provider: provider("hentaila", true), resolvers: resolver("https://other.example/master.m3u8") },
+      { provider: provider("jkanime"), resolvers: resolver("https://jk.example/master.m3u8") },
+    ]);
+    const streams = await service.getStreams("series", "tt0388629:1:1176");
+    expect(streams).toHaveLength(1);
+    expect(streams[0]?.name).toContain("JKAnime");
   });
 
   it("deduplicates identical final URLs across providers", async () => {
@@ -88,6 +101,7 @@ describe("multi-provider stream orchestration", () => {
     const service = new ProviderSearchService(testConfig(), metadata, [
       { provider: provider("animeav1"), resolvers: resolver(shared) },
       { provider: provider("hentaila"), resolvers: resolver(shared) },
+      { provider: provider("jkanime"), resolvers: resolver(shared) },
     ]);
     await expect(service.getStreams("series", "tt0388629:1:1176")).resolves.toHaveLength(1);
   });
@@ -143,5 +157,45 @@ describe("multi-provider stream orchestration", () => {
     const streams = await service.getStreams("series", "tt3398540:3:1");
     expect(anime.getEpisode).toHaveBeenCalledWith("haikyuu-third-season", 1);
     expect(streams[0]?.title).toContain("Karasuno Koukou");
+  });
+
+  it("maps a Nuvio season to JKAnime's separate season entry", async () => {
+    const seasonMetadata: MetadataProvider = {
+      resolve: vi.fn().mockResolvedValue({
+        provider: "imdb", baseId: "tt3398540", type: "series", title: "Haikyu!!",
+        aliases: ["Haikyuu!!"], year: 2014, season: 3, episode: 1,
+        seasonYear: 2016, seasonEpisodeCount: 10,
+      }),
+    };
+    const base = {
+      title: "Haikyuu!!", slug: "haikyuu", aka: {}, startDate: "2014-04-06",
+      category: { name: "Serie", slug: "tv-anime" }, genres: [],
+      episodes: Array.from({ length: 25 }, (_, index) => ({ number: index + 1 })),
+    };
+    const third = {
+      title: "Haikyuu!! Third Season", slug: "haikyuu-third-season",
+      aka: { "en-us": "Haikyu!! 3rd Season" }, startDate: "2016-01-01",
+      category: { name: "Serie", slug: "tv-anime" }, genres: [],
+      episodes: Array.from({ length: 10 }, (_, index) => ({ number: index + 1 })),
+    };
+    const jkanime: DirectMediaProvider = {
+      id: "jkanime", name: "JKAnime", baseUrl: "https://jkanime.net",
+      cdnBaseUrl: "https://jkanime.net", getCatalog: vi.fn(),
+      search: vi.fn().mockResolvedValue([
+        { id: base.slug, title: base.title, slug: base.slug },
+        { id: third.slug, title: third.title, slug: third.slug },
+      ]),
+      getMedia: vi.fn().mockImplementation((slug: string) => Promise.resolve(slug === third.slug ? third : base)),
+      getEpisode: vi.fn().mockResolvedValue({
+        media: third, episodeNumber: 1,
+        embeds: [{ server: "JKAnime UM", language: "SUB-ES", url: "https://jkanime.net/jkplayer/um/?u=test" }],
+      }),
+    };
+    const service = new ProviderSearchService(testConfig(), seasonMetadata, [
+      { provider: jkanime, resolvers: resolver("https://nika.playmudos.com/title/master.m3u8") },
+    ]);
+    const streams = await service.getStreams("series", "tt3398540:3:1");
+    expect(jkanime.getEpisode).toHaveBeenCalledWith("haikyuu-third-season", 1);
+    expect(streams[0]?.title).toContain("Third Season");
   });
 });

@@ -25,7 +25,7 @@ function page(kind: ProviderCatalogKind, currentPage: number): ProviderCatalogPa
 function fakeProvider(id: ProviderId): DirectMediaProvider {
   return {
     id,
-    name: id === "animeav1" ? "AnimeAV1" : "Hentaila",
+    name: id === "animeav1" ? "AnimeAV1" : id === "jkanime" ? "JKAnime" : "Hentaila",
     baseUrl: `https://${id}.example`,
     cdnBaseUrl: `https://cdn.${id}.example`,
     search: vi.fn(),
@@ -36,13 +36,12 @@ function fakeProvider(id: ProviderId): DirectMediaProvider {
 }
 
 describe("catalog and provider metadata services", () => {
-  it("routes all five stable catalog IDs to the correct provider and source filter", async () => {
+  it("routes only the three Hentaila catalog IDs to their source filters", async () => {
     const anime = fakeProvider("animeav1");
     const hentai = fakeProvider("hentaila");
-    const service = new ProviderCatalogService([anime, hentai]);
+    const jkanime = fakeProvider("jkanime");
+    const service = new ProviderCatalogService([anime, hentai, jkanime]);
     const ids = [
-      ["animeav1-popular", anime, "popular"],
-      ["animeav1-airing", anime, "airing"],
       ["hentaila-popular", hentai, "popular"],
       ["hentaila-airing", hentai, "airing"],
       ["hentaila-uncensored", hentai, "uncensored"],
@@ -57,13 +56,15 @@ describe("catalog and provider metadata services", () => {
         background: expect.stringContaining("/backdrops/"),
       });
     }
+    expect(anime.getCatalog).not.toHaveBeenCalled();
+    expect(jkanime.getCatalog).not.toHaveBeenCalled();
   });
 
   it("translates skip into upstream pages without limiting the catalog to page one", async () => {
-    const anime = fakeProvider("animeav1");
-    const service = new ProviderCatalogService([anime]);
-    const metas = await service.getCatalog("series", "animeav1-popular", 40);
-    expect(anime.getCatalog).toHaveBeenCalledWith("popular", 3);
+    const hentai = fakeProvider("hentaila");
+    const service = new ProviderCatalogService([hentai]);
+    const metas = await service.getCatalog("series", "hentaila-popular", 40);
+    expect(hentai.getCatalog).toHaveBeenCalledWith("popular", 3);
     expect(metas[0]?.name).toBe("popular 3-0");
   });
 

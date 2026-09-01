@@ -90,10 +90,10 @@ export class ProviderSearchService implements StreamSearchService {
   private async resolveMedia(runtime: ProviderRuntime, media: ProviderMedia, episodeNumber: number): Promise<AddonStream[]> {
     const episode = await runtime.provider.getEpisode(media.slug, episodeNumber);
     if (!episode || episode.media.slug !== media.slug) return [];
-    const episodePageUrl = new URL(
-      `media/${encodeURIComponent(media.slug)}/${episodeNumber}`,
-      `${runtime.provider.baseUrl}/`,
-    ).toString();
+    const episodePath = runtime.provider.id === "jkanime"
+      ? `${encodeURIComponent(media.slug)}/${episodeNumber}/`
+      : `media/${encodeURIComponent(media.slug)}/${episodeNumber}`;
+    const episodePageUrl = new URL(episodePath, `${runtime.provider.baseUrl}/`).toString();
     const resolved = await runtime.resolvers.resolveAll(episode.embeds, episodePageUrl);
     const title = safeFilename(media.title);
     const episodeLabel = `Episodio ${episodeNumber}`;

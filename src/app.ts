@@ -10,6 +10,7 @@ import { manifest } from "./manifest.js";
 import { RemoteMetadataProvider } from "./metadata/client.js";
 import { AnimeAv1Client } from "./providers/animeav1/client.js";
 import { HentailaClient } from "./providers/hentaila/client.js";
+import { JkAnimeClient } from "./providers/jkanime/client.js";
 import { DirectStreamResolverRegistry } from "./providers/resolvers.js";
 import { ProviderCatalogService } from "./services/catalog.js";
 import { ProviderMetaService } from "./services/meta.js";
@@ -76,7 +77,8 @@ export async function buildApp(
 
   const animeAv1 = new AnimeAv1Client(config);
   const hentaila = new HentailaClient(config);
-  const providers = [animeAv1, hentaila];
+  const jkAnime = new JkAnimeClient(config);
+  const providers = [animeAv1, hentaila, jkAnime];
   const resolvers = new DirectStreamResolverRegistry(config);
   const searchService = dependencies.searchService ?? new ProviderSearchService(
     config,
@@ -94,7 +96,7 @@ export async function buildApp(
       protocol: "Stremio addon protocol (Nuvio compatible)",
       manifest: "/manifest.json",
       health: "/health",
-      sources: ["AnimeAV1", "Hentaila"],
+      sources: ["AnimeAV1", "Hentaila", "JKAnime"],
       streaming: "Direct HTTP/HTTPS only",
       p2p: false,
     };
@@ -107,7 +109,7 @@ export async function buildApp(
 
   app.get("/health", async (_request, reply) => {
     void reply.header("cache-control", "no-store");
-    return { status: "ok", version: manifest.version, sources: ["AnimeAV1", "Hentaila"], p2p: false };
+    return { status: "ok", version: manifest.version, sources: ["AnimeAV1", "Hentaila", "JKAnime"], p2p: false };
   });
 
   const serveCatalog = async (

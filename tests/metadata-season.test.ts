@@ -23,19 +23,31 @@ describe("season-specific metadata", () => {
     });
   });
 
-  it("loads the requested TMDB season without making the base lookup fragile", async () => {
-    const request = vi.fn().mockImplementation((url: URL) => Promise.resolve(JSON.stringify(
-      url.pathname.endsWith("/season/3")
-        ? { name: "Season 3", air_date: "2016-10-08", episodes: Array.from({ length: 10 }, (_, index) => ({ episode_number: index + 1 })) }
-        : { name: "Haikyu!!", original_name: "ハイキュー!!", first_air_date: "2014-04-06", alternative_titles: { results: [] } },
-    )));
-    const provider = new RemoteMetadataProvider(testConfig({ tmdbApiKey: "test-key" }), request);
+  it("resolves a TMDB season through a public Stremio metadata source without credentials", async () => {
+    const request = vi.fn().mockResolvedValue(JSON.stringify({
+      meta: {
+        name: "Haikyu!!",
+        originalName: "ハイキュー!!",
+        aliases: ["Haikyuu!!"],
+        year: "2014–2020",
+        seasons: [{ season: 3, name: "Season 3" }],
+        videos: Array.from({ length: 10 }, (_, index) => ({
+          id: `tmdb:123:3:${index + 1}`,
+          season: 3,
+          episode: index + 1,
+          name: index === 0 ? "Greetings" : `Episode ${index + 1}`,
+          released: `2016-10-${String(8 + index).padStart(2, "0")}T00:00:00Z`,
+        })),
+      },
+    }));
+    const provider = new RemoteMetadataProvider(testConfig(), request);
     await expect(provider.resolve("series", {
       provider: "tmdb", baseId: "123", season: 3, episode: 1,
     })).resolves.toMatchObject({
-      title: "Haikyu!!", year: 2014, seasonTitle: "Season 3",
+      title: "Haikyu!!", year: 2014, episodeTitle: "Greetings", seasonTitle: "Season 3",
       seasonYear: 2016, seasonEpisodeCount: 10,
     });
-    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(request).mock.calls[0]?.[0].toString()).toContain("/meta/series/tmdb%3A123.json");
   });
 });

@@ -23,6 +23,10 @@ describe("Nuvio media IDs", () => {
     expect(parseProviderMediaId("animehes:hentaila:itadaki-seieki")).toEqual({
       provider: "hentaila", slug: "itadaki-seieki",
     });
+    expect(providerMediaId("jkanime", "haikyuu-third-season", 1)).toBe("animehes:jkanime:haikyuu-third-season:1");
+    expect(parseProviderMediaId("animehes:jkanime:haikyuu-third-season:1")).toEqual({
+      provider: "jkanime", slug: "haikyuu-third-season", episode: 1,
+    });
     expect(() => parseProviderMediaId("animehes:animeav1:../admin")).toThrow();
   });
 

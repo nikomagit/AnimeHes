@@ -21,7 +21,7 @@ describe("HTTP addon interface", () => {
     const body = response.json();
     expect(body).toMatchObject({
       id: "org.nuvio.animehes",
-      version: "1.1.1",
+      version: "1.2.0",
       behaviorHints: { adult: true, p2p: false, configurable: false },
     });
     expect(body.resources).toEqual(expect.arrayContaining([
@@ -30,8 +30,6 @@ describe("HTTP addon interface", () => {
       expect.objectContaining({ name: "stream", idPrefixes: ["tt", "tmdb:", "kitsu:", "animehes:"] }),
     ]));
     expect(body.catalogs.map((catalog: { id: string }) => catalog.id)).toEqual([
-      "animeav1-popular",
-      "animeav1-airing",
       "hentaila-popular",
       "hentaila-airing",
       "hentaila-uncensored",
@@ -40,7 +38,7 @@ describe("HTTP addon interface", () => {
 
   it("serves catalog pagination and provider-native metadata envelopes", async () => {
     const catalogService: CatalogService = {
-      getCatalog: vi.fn().mockResolvedValue([{ id: "animehes:animeav1:one-piece", type: "series", name: "One Piece" }]),
+      getCatalog: vi.fn().mockResolvedValue([{ id: "animehes:hentaila:example", type: "series", name: "Example" }]),
     };
     const metaService: MetaService = {
       getMeta: vi.fn().mockResolvedValue({ id: "animehes:animeav1:one-piece", type: "series", name: "One Piece" }),
@@ -51,10 +49,10 @@ describe("HTTP addon interface", () => {
       metaService,
     });
     apps.push(app);
-    const catalog = await app.inject({ method: "GET", url: "/catalog/series/animeav1-popular/skip=20.json" });
+    const catalog = await app.inject({ method: "GET", url: "/catalog/series/hentaila-popular/skip=20.json" });
     expect(catalog.statusCode).toBe(200);
     expect(catalog.json().metas).toHaveLength(1);
-    expect(catalogService.getCatalog).toHaveBeenCalledWith("series", "animeav1-popular", 20);
+    expect(catalogService.getCatalog).toHaveBeenCalledWith("series", "hentaila-popular", 20);
     const meta = await app.inject({ method: "GET", url: "/meta/series/animehes:animeav1:one-piece.json" });
     expect(meta.statusCode).toBe(200);
     expect(meta.json().meta.name).toBe("One Piece");

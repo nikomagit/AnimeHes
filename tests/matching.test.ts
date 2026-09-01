@@ -103,4 +103,45 @@ describe("conservative title matching", () => {
       episodes: [{ number: 1 }, { number: 2 }],
     })).toBe(false);
   });
+
+  it("selects Haikyuu seasons 1 through 4 without falling back to season 1", () => {
+    const candidates = [
+      {
+        title: "Haikyuu!!", slug: "haikyuu", aka: {}, startDate: "2014-04-06",
+        category: { name: "TV Anime", slug: "tv-anime" }, genres: [],
+        episodes: Array.from({ length: 25 }, (_, index) => ({ number: index + 1 })),
+      },
+      {
+        title: "Haikyuu!! Second Season", slug: "haikyuu-second-season", aka: {}, startDate: "2015-10-04",
+        category: { name: "TV Anime", slug: "tv-anime" }, genres: [],
+        episodes: Array.from({ length: 25 }, (_, index) => ({ number: index + 1 })),
+      },
+      {
+        title: "Haikyuu!! Karasuno Koukou vs. Shiratorizawa Gakuen Koukou", slug: "haikyuu-third-season",
+        aka: { "en-us": "Haikyu!! 3rd Season" }, startDate: "2016-10-08",
+        category: { name: "TV Anime", slug: "tv-anime" }, genres: [],
+        episodes: Array.from({ length: 10 }, (_, index) => ({ number: index + 1 })),
+      },
+      {
+        title: "Haikyuu!! To the Top", slug: "haikyuu-to-the-top", aka: {}, startDate: "2020-01-11",
+        category: { name: "TV Anime", slug: "tv-anime" }, genres: [],
+        episodes: Array.from({ length: 25 }, (_, index) => ({ number: index + 1 })),
+      },
+    ];
+    const expectations = [
+      { season: 1, seasonYear: 2014, seasonEpisodeCount: 25, slug: "haikyuu" },
+      { season: 2, seasonYear: 2015, seasonEpisodeCount: 25, slug: "haikyuu-second-season" },
+      { season: 3, seasonYear: 2016, seasonEpisodeCount: 10, slug: "haikyuu-third-season" },
+      { season: 4, seasonYear: 2020, seasonEpisodeCount: 25, slug: "haikyuu-to-the-top" },
+    ];
+    for (const expected of expectations) {
+      const wanted: MediaMetadata = {
+        provider: "imdb", baseId: "tt3398540", type: "series", title: "Haikyu!!",
+        aliases: ["Haikyuu!!"], season: expected.season, episode: 1,
+        seasonYear: expected.seasonYear, seasonEpisodeCount: expected.seasonEpisodeCount,
+      };
+      expect(candidates.filter((candidate) => isSeasonCompatible(wanted, candidate)).map((candidate) => candidate.slug))
+        .toEqual([expected.slug]);
+    }
+  });
 });
