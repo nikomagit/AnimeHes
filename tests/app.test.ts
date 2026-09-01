@@ -21,7 +21,7 @@ describe("HTTP addon interface", () => {
     const body = response.json();
     expect(body).toMatchObject({
       id: "org.nuvio.animehes",
-      version: "1.1.0",
+      version: "1.1.1",
       behaviorHints: { adult: true, p2p: false, configurable: false },
     });
     expect(body.resources).toEqual(expect.arrayContaining([

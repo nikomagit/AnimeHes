@@ -102,7 +102,7 @@ Las pruebas reales incluyeron dos servidores locales con un origen configurado a
 
 ## Resultado de la validación en vivo
 
-- Manifest v1.1.0 con cinco catálogos y `p2p: false`.
+- Manifest v1.1.1 con cinco catálogos y `p2p: false`.
 - Primera y segunda página de los cinco catálogos, 20 elementos por página.
 - Metadatos, póster, fondo, géneros, estado y episodios de ambas fuentes.
 - AnimeAV1: 2 streams directos en el episodio probado.
@@ -110,5 +110,11 @@ Las pruebas reales incluyeron dos servidores locales con un origen configurado a
 - Resolución por IMDb comprobada para ambos proveedores.
 - HLS y MP4 finales respondieron correctamente con los headers declarados.
 - Ninguna respuesta inspeccionada contenía magnets, trackers ni `infoHash`.
+
+## Temporadas publicadas como títulos independientes
+
+Nuvio puede solicitar un episodio con un ID unificado, por ejemplo `IMDb:temporada:episodio`, aunque AnimeAV1 publique cada temporada como una ficha diferente. El resolver obtiene el año y la cantidad de episodios de la temporada desde Cinemeta o TMDB, reconoce indicadores como `2nd Season` y `Third Season`, descarta películas/OVA y valida los candidatos antes de seleccionar el episodio relativo.
+
+La regresión se comprobó con las cuatro temporadas de Haikyuu: la temporada 1 selecciona `Haikyuu!!`, la 2 `Second Season`, la 3 `Karasuno vs. Shiratorizawa` y la 4 `To the Top`. Un candidato sin evidencia suficiente se rechaza para evitar reproducir silenciosamente la primera temporada.
 
 La comprobación confirma el flujo al momento indicado, pero no garantiza la disponibilidad futura de contenido o mirrors de terceros.

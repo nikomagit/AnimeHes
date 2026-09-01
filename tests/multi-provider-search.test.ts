@@ -103,4 +103,45 @@ describe("multi-provider stream orchestration", () => {
     expect(anime.getEpisode).toHaveBeenCalledWith("one-piece", 1176);
     expect(directMetadata.resolve).not.toHaveBeenCalled();
   });
+
+  it("maps a Nuvio season to AnimeAV1's separate season entry", async () => {
+    const seasonMetadata: MetadataProvider = {
+      resolve: vi.fn().mockResolvedValue({
+        provider: "imdb", baseId: "tt3398540", type: "series", title: "Haikyu!!",
+        aliases: ["Haikyuu!!"], year: 2014, season: 3, episode: 1,
+        seasonYear: 2016, seasonEpisodeCount: 10,
+      }),
+    };
+    const base = {
+      title: "Haikyuu!!", slug: "haikyuu", aka: {}, startDate: "2014-04-06",
+      category: { name: "TV Anime", slug: "tv-anime" }, genres: [],
+      episodes: Array.from({ length: 25 }, (_, index) => ({ number: index + 1 })),
+    };
+    const third = {
+      title: "Haikyuu!! Karasuno Koukou vs. Shiratorizawa Gakuen Koukou",
+      slug: "haikyuu-third-season", aka: { "en-us": "Haikyu!! 3rd Season" },
+      startDate: "2016-10-08", category: { name: "TV Anime", slug: "tv-anime" }, genres: [],
+      episodes: Array.from({ length: 10 }, (_, index) => ({ number: index + 1 })),
+    };
+    const anime: DirectMediaProvider = {
+      id: "animeav1", name: "AnimeAV1", baseUrl: "https://animeav1.com",
+      cdnBaseUrl: "https://cdn.animeav1.com", getCatalog: vi.fn(),
+      search: vi.fn().mockResolvedValue([
+        { id: "1427", title: base.title, slug: base.slug },
+        { id: "1432", title: third.title, slug: third.slug },
+      ]),
+      getMedia: vi.fn().mockImplementation((slug: string) =>
+        Promise.resolve(slug === third.slug ? third : base)),
+      getEpisode: vi.fn().mockResolvedValue({
+        media: third, episodeNumber: 1,
+        embeds: [{ server: "HLS", language: "SUB", url: "https://player.example/play/id" }],
+      }),
+    };
+    const service = new ProviderSearchService(testConfig(), seasonMetadata, [
+      { provider: anime, resolvers: resolver() },
+    ]);
+    const streams = await service.getStreams("series", "tt3398540:3:1");
+    expect(anime.getEpisode).toHaveBeenCalledWith("haikyuu-third-season", 1);
+    expect(streams[0]?.title).toContain("Karasuno Koukou");
+  });
 });

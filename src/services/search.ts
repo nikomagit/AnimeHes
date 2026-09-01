@@ -5,7 +5,13 @@ import { parseProviderMediaId } from "../metadata/provider-id.js";
 import type { DirectStreamResolver } from "../providers/resolvers.js";
 import type { DirectMediaProvider, ProviderMedia, ProviderSearchResult } from "../providers/types.js";
 import type { AddonStream, MediaMetadata, StreamSearchService } from "../types.js";
-import { buildSearchQueries, detailedScore, normalizeTitle, preliminaryScore } from "./matching.js";
+import {
+  buildSearchQueries,
+  detailedScore,
+  isSeasonCompatible,
+  normalizeTitle,
+  preliminaryScore,
+} from "./matching.js";
 
 interface Candidate {
   result: ProviderSearchResult;
@@ -122,11 +128,18 @@ export class ProviderSearchService implements StreamSearchService {
         if (!existing || score > existing.preliminary) candidates.set(result.slug, { result, preliminary: score });
       }
     }
-    const shortlist = [...candidates.values()].sort((left, right) => right.preliminary - left.preliminary).slice(0, this.config.maxCandidates);
+    const seasonalRequest = metadata.provider !== "kitsu" && (metadata.season ?? 1) > 1;
+    const candidateLimit = seasonalRequest
+      ? Math.min(12, Math.max(this.config.maxCandidates, this.config.maxCandidates * 2))
+      : this.config.maxCandidates;
+    const shortlist = [...candidates.values()]
+      .sort((left, right) => right.preliminary - left.preliminary)
+      .slice(0, candidateLimit);
     const details = await Promise.allSettled(shortlist.map(async (candidate) => ({ media: await provider.getMedia(candidate.result.slug) })));
     let best: { media: ProviderMedia; score: number } | undefined;
     for (const detail of details) {
       if (detail.status !== "fulfilled" || !detail.value.media) continue;
+      if (!isSeasonCompatible(metadata, detail.value.media)) continue;
       const score = detailedScore(metadata, detail.value.media);
       if (!best || score > best.score) best = { media: detail.value.media, score };
     }

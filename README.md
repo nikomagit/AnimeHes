@@ -32,6 +32,7 @@ Todos aceptan `skip` y traducen el desplazamiento a la página correspondiente d
 - Catálogos con póster, fondo, descripción, año, géneros, estado y episodios cuando la fuente los ofrece.
 - Búsqueda de streams mediante IDs IMDb, TMDB y Kitsu.
 - Matching tolerante con títulos originales, alternativos, japoneses e ingleses, con año como señal adicional.
+- Resolución de temporadas separadas: convierte una petición como `temporada 3, episodio 1` en la entrada independiente correcta del proveedor.
 - AnimeAV1: HLS y MP4Upload actualmente compatibles.
 - Hentaila: VIP/HLS, YourUpload y MP4Upload actualmente compatibles.
 - Headers de reproducción en `behaviorHints.proxyHeaders` cuando el host los necesita.
@@ -65,6 +66,8 @@ Ejemplos de IDs de stream admitidos:
 ```
 
 Los dos últimos segmentos de IMDb/TMDB son temporada y episodio. En Kitsu, el último segmento es el episodio. Los IDs `animehes:` nacen de los catálogos y no necesitan consultar un servicio externo de metadatos.
+
+Cuando un proveedor publica cada temporada como un título independiente, AnimeHes utiliza el nombre ordinal, año de estreno, categoría y cantidad de episodios de la temporada. Si no existe evidencia suficiente para identificarla, devuelve cero streams antes que reproducir una temporada incorrecta.
 
 ## Ejecución local
 

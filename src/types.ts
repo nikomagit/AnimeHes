@@ -14,6 +14,9 @@ export interface MediaMetadata extends ParsedMediaId {
   aliases: string[];
   year?: number;
   episodeTitle?: string;
+  seasonTitle?: string;
+  seasonYear?: number;
+  seasonEpisodeCount?: number;
 }
 
 export interface StreamProxyHeaders {

@@ -15,6 +15,7 @@ interface CinemetaVideo {
   title?: unknown;
   season?: unknown;
   episode?: unknown;
+  released?: unknown;
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -96,6 +97,11 @@ export class RemoteMetadataProvider implements MetadataProvider {
             (Number(video.season) === parsed.season && Number(video.episode) === parsed.episode);
         });
         const episodeTitle = text(episodeVideo?.name ?? episodeVideo?.title);
+        const seasonVideos = parsed.season === undefined
+          ? []
+          : videos.filter((video) => Number(video.season) === parsed.season);
+        const seasonYear = yearFrom(episodeVideo?.released ?? seasonVideos[0]?.released);
+        const seasonEpisodeCount = seasonVideos.length || undefined;
         const year = yearFrom(meta?.year ?? meta?.releaseInfo ?? meta?.released);
         return {
           ...parsed,
@@ -104,6 +110,8 @@ export class RemoteMetadataProvider implements MetadataProvider {
           aliases,
           ...(year === undefined ? {} : { year }),
           ...(episodeTitle ? { episodeTitle } : {}),
+          ...(seasonYear === undefined ? {} : { seasonYear }),
+          ...(seasonEpisodeCount === undefined ? {} : { seasonEpisodeCount }),
         };
       }
     } catch (error) {
@@ -216,12 +224,54 @@ export class RemoteMetadataProvider implements MetadataProvider {
     if (!title && !originalTitle) throw new MetadataUnavailableError();
     const aliases = uniqueStrings([title, originalTitle, ...alternativeTitles(payload)]);
     const year = yearFrom(type === "movie" ? payload?.release_date : payload?.first_air_date);
+    const seasonMetadata = type === "series" && parsed.season !== undefined
+      ? await this.resolveTmdbSeason(parsed.baseId, parsed.season)
+      : {};
     return {
       ...parsed,
       type,
       title: title ?? originalTitle!,
       aliases,
       ...(year === undefined ? {} : { year }),
+      ...seasonMetadata,
     };
+  }
+
+  private async resolveTmdbSeason(
+    baseId: string,
+    season: number,
+  ): Promise<Pick<MediaMetadata, "seasonTitle" | "seasonYear" | "seasonEpisodeCount">> {
+    const url = new URL(
+      `tv/${encodeURIComponent(baseId)}/season/${season}`,
+      `${this.config.tmdbBaseUrl}/`,
+    );
+    url.searchParams.set("language", this.config.tmdbLanguage);
+    if (!this.config.tmdbReadAccessToken && this.config.tmdbApiKey) {
+      url.searchParams.set("api_key", this.config.tmdbApiKey);
+    }
+    try {
+      const payload = record(JSON.parse(await this.request(url, {
+        ...this.options("TMDB season metadata"),
+        headers: {
+          accept: "application/json",
+          "user-agent": this.config.userAgent,
+          ...(this.config.tmdbReadAccessToken
+            ? { authorization: `Bearer ${this.config.tmdbReadAccessToken}` }
+            : {}),
+        },
+      })));
+      const seasonTitle = text(payload?.name);
+      const seasonYear = yearFrom(payload?.air_date);
+      const episodes = Array.isArray(payload?.episodes) ? payload.episodes : [];
+      const seasonEpisodeCount = episodes.length || undefined;
+      return {
+        ...(seasonTitle ? { seasonTitle } : {}),
+        ...(seasonYear === undefined ? {} : { seasonYear }),
+        ...(seasonEpisodeCount === undefined ? {} : { seasonEpisodeCount }),
+      };
+    } catch {
+      // The base metadata remains useful if a season page is temporarily unavailable.
+      return {};
+    }
   }
 }
