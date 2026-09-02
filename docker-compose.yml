@@ -1,5 +1,5 @@
 services:
-  animehes:
+  amokin:
     build: .
     restart: unless-stopped
     ports:

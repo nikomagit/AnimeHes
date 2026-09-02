@@ -119,7 +119,7 @@ export async function buildApp(
   app.get("/logo.jpg", async (_request, reply) => {
     void reply.header("cache-control", "public, max-age=604800, immutable");
     return reply.type("image/jpeg").send(
-      await readFile(resolve(process.cwd(), "assets", "logo-gato.jpg")),
+      await readFile(resolve(process.cwd(), "assets", "logo-amokin.jpg")),
     );
   });
 

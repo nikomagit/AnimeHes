@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: animehes
+    name: amokin
     runtime: docker
     plan: free
     healthCheckPath: /health

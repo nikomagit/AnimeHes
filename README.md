@@ -1,6 +1,6 @@
-# AnimeHes para Nuvio/Stremio
+# AMOKIN para Nuvio/Stremio
 
-AnimeHes es un addon de reproducción directa. Para anime conserva [AnimeAV1](https://animeav1.com/), [Hentaila](https://hentaila.com/) y [JKAnime](https://jkanime.net/); para películas y series utiliza [Cuevana](https://cuevana3l.biz/) y [LaMovie](https://lamovie.org/) únicamente como proveedores de streams. Los únicos catálogos anunciados siguen siendo los tres de Hentaila.
+AMOKIN es un addon de reproducción directa. Para anime conserva [AnimeAV1](https://animeav1.com/), [Hentaila](https://hentaila.com/) y [JKAnime](https://jkanime.net/); para películas y series utiliza [Cuevana](https://cuevana3l.biz/) y [LaMovie](https://lamovie.org/) únicamente como proveedores de streams. Los únicos catálogos anunciados siguen siendo los tres de Hentaila.
 
 El manifest incluye el logo oficial del addon en `/logo.jpg`.
 
@@ -13,7 +13,7 @@ No usa torrents, magnet links, `infoHash`, P2P, TorBox, Real-Debrid ni descargas
 Agrega este manifest en Nuvio o Stremio:
 
 ```text
-https://animehes.onrender.com/manifest.json
+https://amokin.onrender.com/manifest.json
 ```
 
 El plan gratuito de Render puede suspender el servidor por inactividad. La primera solicitud después de una pausa puede tardar mientras la instancia despierta; las siguientes deberían responder normalmente.
@@ -24,7 +24,7 @@ El plan gratuito de Render puede suspender el servidor por inactividad. La prime
 - `hentaila-airing`: Hentaila — Al aire.
 - `hentaila-uncensored`: Hentaila — Sin Censura, usando el filtro oficial ordenado por popularidad.
 
-Todos aceptan `skip` y traducen el desplazamiento a la página correspondiente del proveedor. Cada ficha usa un ID estable con el formato `animehes:{proveedor}:{slug}`; los episodios añaden `:{episodio}`.
+Todos aceptan `skip` y traducen el desplazamiento a la página correspondiente del proveedor. Cada ficha usa un ID estable con el formato `amokin:{proveedor}:{slug}`; los episodios añaden `:{episodio}`.
 
 ## Funciones principales
 
@@ -54,7 +54,7 @@ GET /health
 GET /manifest.json
 GET /catalog/series/{catalogId}.json
 GET /catalog/series/{catalogId}/skip=20.json
-GET /meta/{type}/animehes:{provider}:{slug}.json
+GET /meta/{type}/amokin:{provider}:{slug}.json
 GET /stream/{type}/{id}.json
 ```
 
@@ -66,14 +66,14 @@ Ejemplos de IDs de stream admitidos:
 /stream/movie/tmdb:12345.json
 /stream/series/tmdb:12345:1:2.json
 /stream/series/kitsu:12345:2.json
-/stream/series/animehes:animeav1:slug:2.json
-/stream/series/animehes:hentaila:slug:2.json
-/stream/series/animehes:jkanime:slug:2.json
+/stream/series/amokin:animeav1:slug:2.json
+/stream/series/amokin:hentaila:slug:2.json
+/stream/series/amokin:jkanime:slug:2.json
 ```
 
-Los dos últimos segmentos de IMDb/TMDB son temporada y episodio. En Kitsu, el último segmento es el episodio. Los IDs `animehes:` nacen de los catálogos y no necesitan consultar un servicio externo de metadatos.
+Los dos últimos segmentos de IMDb/TMDB son temporada y episodio. En Kitsu, el último segmento es el episodio. Los IDs `amokin:` nacen de los catálogos y no necesitan consultar un servicio externo de metadatos.
 
-Cuando un proveedor publica cada temporada como un título independiente, AnimeHes utiliza el nombre ordinal, año de estreno, categoría y cantidad de episodios de la temporada. Si no existe evidencia suficiente para identificarla, devuelve cero streams antes que reproducir una temporada incorrecta.
+Cuando un proveedor publica cada temporada como un título independiente, AMOKIN utiliza el nombre ordinal, año de estreno, categoría y cantidad de episodios de la temporada. Si no existe evidencia suficiente para identificarla, devuelve cero streams antes que reproducir una temporada incorrecta.
 
 ## Ejecución local
 
@@ -133,8 +133,8 @@ docker compose up -d --build
 O directamente:
 
 ```bash
-docker build -t animehes .
-docker run --rm -p 7100:7100 -e PORT=7100 animehes
+docker build -t amokin .
+docker run --rm -p 7100:7100 -e PORT=7100 amokin
 ```
 
 El procedimiento para Render, Koyeb y un VPS está en [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). GitHub Pages no sirve porque el addon necesita un proceso Node.js activo para consultar los proveedores y resolver URLs temporales.
@@ -144,9 +144,9 @@ El procedimiento para Render, Koyeb y un VPS está en [docs/DEPLOYMENT.md](docs/
 ```text
 Nuvio / Stremio
   ├─ /catalog → proveedor → página pública → metas normalizadas
-  ├─ /meta    → ID animehes → ficha y episodios del proveedor
+  ├─ /meta    → ID amokin → ficha y episodios del proveedor
   └─ /stream
-       ├─ ID animehes → proveedor conocido
+       ├─ ID amokin → proveedor conocido
        └─ IMDb/TMDB/Kitsu → metadatos y alias → proveedores en orden prioritario
             → matching y episodio → resolvers HTTP → deduplicación
 ```
@@ -161,7 +161,7 @@ Nuvio / Stremio
 - `src/lib/`: HTTP limitado, caché y decodificación segura de datos.
 - `src/app.ts`: rutas Fastify y respuestas del protocolo.
 
-Las URLs de vídeo se resuelven al pedir streams porque algunas caducan. AnimeHes no almacena ni retransmite el vídeo: el reproductor solicita directamente la URL indicada con los headers declarados.
+Las URLs de vídeo se resuelven al pedir streams porque algunas caducan. AMOKIN no almacena ni retransmite el vídeo: el reproductor solicita directamente la URL indicada con los headers declarados.
 
 ## Desarrollo y verificación
 

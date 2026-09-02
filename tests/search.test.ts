@@ -58,7 +58,7 @@ describe("end-to-end search orchestration", () => {
     }));
     expect(streams).toHaveLength(1);
     expect(streams[0]).toMatchObject({
-      name: "AnimeHes\nHentaila • VIP",
+      name: "AMOKIN\nHentaila • VIP",
       type: "hls",
       url: "https://cdn.hvidserv.com/m3u8/id",
       behaviorHints: {

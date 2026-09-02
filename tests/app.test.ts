@@ -20,16 +20,17 @@ describe("HTTP addon interface", () => {
     expect(response.headers["access-control-allow-origin"]).toBe("*");
     const body = response.json();
     expect(body).toMatchObject({
-      id: "org.nuvio.animehes",
-      version: "1.4.0",
+      id: "org.nuvio.amokin",
+      version: "2.0.0",
+      name: "AMOKIN",
       description: "Streams HTTP/HTTPS directos de AnimeAv1, JKanime y Hentaila, sin P2P ni adicionales. No esta vinculado a ninguna de las 3 plataformas mencionadas.",
-      logo: "https://animehes.onrender.com/logo.jpg",
+      logo: "https://amokin.onrender.com/logo.jpg",
       behaviorHints: { adult: true, p2p: false, configurable: false },
     });
     expect(body.resources).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "catalog" }),
-      expect.objectContaining({ name: "meta", idPrefixes: ["animehes:"] }),
-      expect.objectContaining({ name: "stream", idPrefixes: ["tt", "tmdb:", "kitsu:", "animehes:"] }),
+      expect.objectContaining({ name: "meta", idPrefixes: ["amokin:"] }),
+      expect.objectContaining({ name: "stream", idPrefixes: ["tt", "tmdb:", "kitsu:", "amokin:"] }),
     ]));
     expect(body.catalogs.map((catalog: { id: string }) => catalog.id)).toEqual([
       "hentaila-popular",
@@ -40,7 +41,7 @@ describe("HTTP addon interface", () => {
     const health = await app.inject({ method: "GET", url: "/health" });
     expect(health.statusCode).toBe(200);
     expect(health.json()).toMatchObject({
-      version: "1.4.0",
+      version: "2.0.0",
       p2p: false,
       sources: ["AnimeAV1", "Hentaila", "JKAnime", "Cuevana", "LaMovie"],
     });
@@ -55,15 +56,15 @@ describe("HTTP addon interface", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toContain("image/jpeg");
     expect(response.headers["cache-control"]).toContain("immutable");
-    expect(response.rawPayload.byteLength).toBeGreaterThan(100_000);
+    expect(response.rawPayload.byteLength).toBeGreaterThan(10_000);
   });
 
   it("serves catalog pagination and provider-native metadata envelopes", async () => {
     const catalogService: CatalogService = {
-      getCatalog: vi.fn().mockResolvedValue([{ id: "animehes:hentaila:example", type: "series", name: "Example" }]),
+      getCatalog: vi.fn().mockResolvedValue([{ id: "amokin:hentaila:example", type: "series", name: "Example" }]),
     };
     const metaService: MetaService = {
-      getMeta: vi.fn().mockResolvedValue({ id: "animehes:animeav1:one-piece", type: "series", name: "One Piece" }),
+      getMeta: vi.fn().mockResolvedValue({ id: "amokin:animeav1:one-piece", type: "series", name: "One Piece" }),
     };
     const app = await buildApp(testConfig(), {
       searchService: { getStreams: vi.fn().mockResolvedValue([]) },
@@ -75,7 +76,7 @@ describe("HTTP addon interface", () => {
     expect(catalog.statusCode).toBe(200);
     expect(catalog.json().metas).toHaveLength(1);
     expect(catalogService.getCatalog).toHaveBeenCalledWith("series", "hentaila-popular", 20);
-    const meta = await app.inject({ method: "GET", url: "/meta/series/animehes:animeav1:one-piece.json" });
+    const meta = await app.inject({ method: "GET", url: "/meta/series/amokin:animeav1:one-piece.json" });
     expect(meta.statusCode).toBe(200);
     expect(meta.json().meta.name).toBe("One Piece");
   });

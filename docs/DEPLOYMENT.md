@@ -1,19 +1,19 @@
 # Despliegue
 
-AnimeHes necesita un servidor Node.js activo. GitHub Pages no es suficiente porque solo publica archivos estáticos.
+AMOKIN necesita un servidor Node.js activo. GitHub Pages no es suficiente porque solo publica archivos estáticos.
 
 ## Instalación pública actual
 
 Repositorio:
 
 ```text
-https://github.com/nikomagit/AnimeHes
+https://github.com/nikomagit/AMOKIN
 ```
 
 Manifest:
 
 ```text
-https://animehes.onrender.com/manifest.json
+https://amokin.onrender.com/manifest.json
 ```
 
 El servicio de Render está conectado a la rama `main`; cada actualización inicia un despliegue automático. El plan gratuito puede entrar en reposo y provocar un arranque lento en la primera solicitud.
@@ -23,7 +23,7 @@ El servicio de Render está conectado a la rama `main`; cada actualización inic
 1. Crea un repositorio de GitHub sin `.env`, `node_modules` ni `dist`.
 2. En Render selecciona **New > Blueprint** y conecta el repositorio.
 3. Render detectará `render.yaml` y construirá el `Dockerfile`.
-4. IMDb, TMDB, Kitsu y los IDs `animehes:` funcionan sin secretos privados. Si quieres aliases localizados adicionales, guarda `TMDB_API_KEY` como secreto del servicio, nunca en Git.
+4. IMDb, TMDB, Kitsu y los IDs `amokin:` funcionan sin secretos privados. Si quieres aliases localizados adicionales, guarda `TMDB_API_KEY` como secreto del servicio, nunca en Git.
 5. Espera a que `/health` responda `{"status":"ok",...}`.
 6. Instala `https://TU-SERVICIO.onrender.com/manifest.json` en Nuvio/Stremio.
 
@@ -42,8 +42,8 @@ Los valores predeterminados ya incluyen los orígenes públicos de AnimeAV1, Hen
 Requisitos: Docker Engine, Compose v2, un dominio y un proxy HTTPS como Caddy o Nginx.
 
 ```bash
-git clone https://github.com/nikomagit/AnimeHes.git
-cd AnimeHes
+git clone https://github.com/nikomagit/AMOKIN.git
+cd AMOKIN
 docker compose up -d --build
 curl http://127.0.0.1:7100/health
 ```
@@ -70,7 +70,7 @@ https://addon.tu-dominio.example/manifest.json
 | `METADATA_FALLBACK_BASE_URL` | `https://94c8cb9f702d-tmdb-addon.baby-beamup.club` |
 | `CATALOG_CACHE_TTL_MS` | `900000` |
 
-AnimeHes no necesita claves de TMDB. `METADATA_FALLBACK_BASE_URL` apunta a un servicio público y puede sustituirse por otra instancia compatible sin credenciales. `TMDB_API_KEY` es opcional: mejora títulos alternativos/localizados y sirve como fallback de conversión IMDb↔TMDB; en Render debe configurarse como variable secreta.
+AMOKIN no necesita claves de TMDB. `METADATA_FALLBACK_BASE_URL` apunta a un servicio público y puede sustituirse por otra instancia compatible sin credenciales. `TMDB_API_KEY` es opcional: mejora títulos alternativos/localizados y sirve como fallback de conversión IMDb↔TMDB; en Render debe configurarse como variable secreta.
 
 ## Verificación posterior
 
@@ -91,7 +91,7 @@ Después abre una ficha, un episodio y una respuesta `/stream/...`. Confirma que
 ```bash
 git pull --ff-only
 docker compose up -d --build
-docker compose logs --tail=100 animehes
+docker compose logs --tail=100 amokin
 ```
 
 No registres query strings de vídeo, cookies ni headers privados: algunos enlaces contienen tokens temporales. Mantén dependencias e imagen base actualizadas.

@@ -15,20 +15,20 @@ describe("Nuvio media IDs", () => {
     });
   });
 
-  it("creates and parses stable AnimeHes provider and episode IDs", () => {
-    expect(providerMediaId("animeav1", "one-piece", 1176)).toBe("animehes:animeav1:one-piece:1176");
-    expect(parseProviderMediaId("animehes:animeav1:one-piece:1176")).toEqual({
+  it("creates and parses stable AMOKIN provider and episode IDs", () => {
+    expect(providerMediaId("animeav1", "one-piece", 1176)).toBe("amokin:animeav1:one-piece:1176");
+    expect(parseProviderMediaId("amokin:animeav1:one-piece:1176")).toEqual({
       provider: "animeav1", slug: "one-piece", episode: 1176,
     });
-    expect(parseProviderMediaId("animehes:hentaila:itadaki-seieki")).toEqual({
+    expect(parseProviderMediaId("amokin:hentaila:itadaki-seieki")).toEqual({
       provider: "hentaila", slug: "itadaki-seieki",
     });
-    expect(providerMediaId("jkanime", "haikyuu-third-season", 1)).toBe("animehes:jkanime:haikyuu-third-season:1");
-    expect(parseProviderMediaId("animehes:jkanime:haikyuu-third-season:1")).toEqual({
+    expect(providerMediaId("jkanime", "haikyuu-third-season", 1)).toBe("amokin:jkanime:haikyuu-third-season:1");
+    expect(parseProviderMediaId("amokin:jkanime:haikyuu-third-season:1")).toEqual({
       provider: "jkanime", slug: "haikyuu-third-season", episode: 1,
     });
-    expect(() => parseProviderMediaId("animehes:animeav1:../admin")).toThrow();
-    expect(() => parseProviderMediaId("animehes:unsupported:dune")).toThrow();
+    expect(() => parseProviderMediaId("amokin:animeav1:../admin")).toThrow();
+    expect(() => parseProviderMediaId("amokin:unsupported:dune")).toThrow();
   });
 
   it("rejects malformed IDs and unsupported types", () => {

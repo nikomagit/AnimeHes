@@ -51,7 +51,7 @@ describe("catalog and provider metadata services", () => {
       expect(metas).toHaveLength(20);
       expect(provider.getCatalog).toHaveBeenCalledWith(kind, 1);
       expect(metas[0]).toMatchObject({
-        id: expect.stringContaining(`animehes:${provider.id}:`),
+        id: expect.stringContaining(`amokin:${provider.id}:`),
         poster: expect.stringContaining("/covers/"),
         background: expect.stringContaining("/backdrops/"),
       });
@@ -84,16 +84,16 @@ describe("catalog and provider metadata services", () => {
       episodes: [{ id: 1, number: 1 }, { id: 2, number: 2 }],
     });
     const service = new ProviderMetaService([anime]);
-    await expect(service.getMeta("series", "animehes:animeav1:one-piece")).resolves.toMatchObject({
-      id: "animehes:animeav1:one-piece",
+    await expect(service.getMeta("series", "amokin:animeav1:one-piece")).resolves.toMatchObject({
+      id: "amokin:animeav1:one-piece",
       type: "series",
       name: "One Piece",
       releaseInfo: "1999",
       genres: ["Acción"],
       status: "En emisión",
       videos: [
-        { id: "animehes:animeav1:one-piece:1", season: 1, episode: 1 },
-        { id: "animehes:animeav1:one-piece:2", season: 1, episode: 2 },
+        { id: "amokin:animeav1:one-piece:1", season: 1, episode: 1 },
+        { id: "amokin:animeav1:one-piece:2", season: 1, episode: 2 },
       ],
     });
   });

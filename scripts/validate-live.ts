@@ -142,7 +142,7 @@ for (const check of [
     const results = [];
     for (const stream of streams.slice(0, 1)) {
       const addonStream: AddonStream = {
-        name: `AnimeHes\n${check.provider.name} • ${stream.server}`,
+        name: `AMOKIN\n${check.provider.name} • ${stream.server}`,
         title: check.label,
         description: check.label,
         url: stream.url,

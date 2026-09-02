@@ -25,7 +25,7 @@ export interface ProviderRuntime {
 }
 
 function safeFilename(value: string): string {
-  return value.normalize("NFKD").replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "AnimeHes";
+  return value.normalize("NFKD").replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "AMOKIN";
 }
 
 function chooseEpisode(metadata: Pick<MediaMetadata, "episode" | "season">, media: ProviderMedia): number | null {
@@ -115,13 +115,13 @@ export class ProviderSearchService implements StreamSearchService {
         .join(" • ");
       const extension = stream.type === "hls" ? "m3u8" : "mp4";
       const result: AddonStream = {
-        name: `AnimeHes\n${runtime.provider.name} • ${stream.server}`,
+        name: `AMOKIN\n${runtime.provider.name} • ${stream.server}`,
         title: `${title}${episodeLabel ? ` • ${episodeLabel}` : ""}\n${details}`,
         description: `${title}${episodeLabel ? ` • ${episodeLabel}` : ""} • ${details}`,
         type: stream.type,
         url: stream.url,
         behaviorHints: {
-          bingeGroup: `animehes|${runtime.provider.id}|${normalizeTitle(stream.server)}|${stream.language.toLocaleLowerCase("en")}`,
+          bingeGroup: `amokin|${runtime.provider.id}|${normalizeTitle(stream.server)}|${stream.language.toLocaleLowerCase("en")}`,
           filename: `${title}${isMovie ? "" : season ? ` - S${String(season).padStart(2, "0")}E${String(relativeEpisode).padStart(2, "0")}` : ` - E${String(relativeEpisode).padStart(2, "0")}`} - ${runtime.provider.name} - ${stream.server}.${extension}`,
           notWebReady: true,
           proxyHeaders: { request: stream.headers },

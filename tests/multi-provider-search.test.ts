@@ -150,7 +150,7 @@ describe("multi-provider stream orchestration", () => {
     const service = new ProviderSearchService(testConfig(), directMetadata, [
       { provider: anime, resolvers: resolver() },
     ]);
-    const streams = await service.getStreams("series", "animehes:animeav1:one-piece:1176");
+    const streams = await service.getStreams("series", "amokin:animeav1:one-piece:1176");
     expect(streams).toHaveLength(1);
     expect(anime.getEpisode).toHaveBeenCalledWith("one-piece", 1176);
     expect(directMetadata.resolve).not.toHaveBeenCalled();
