@@ -1,8 +1,6 @@
 import { loadConfig } from "../src/config.js";
-import { CineCalidadClient } from "../src/providers/cinecalidad/client.js";
 import { CuevanaClient } from "../src/providers/cuevana/client.js";
 import { AnimeAv1Client } from "../src/providers/animeav1/client.js";
-import { GnulaHdClient } from "../src/providers/gnulahd/client.js";
 import { HentailaClient } from "../src/providers/hentaila/client.js";
 import { JkAnimeClient } from "../src/providers/jkanime/client.js";
 import { LaMovieClient } from "../src/providers/lamovie/client.js";
@@ -16,7 +14,6 @@ interface CheckTarget {
   type: MediaType;
   id: string;
   metadata: MediaMetadata;
-  providers?: string[];
 }
 
 interface Validation {
@@ -40,8 +37,6 @@ const resolver = new DirectStreamResolverRegistry(config);
 const providers: DirectMediaProvider[] = [
   new CuevanaClient(config),
   new LaMovieClient(config),
-  new GnulaHdClient(config),
-  new CineCalidadClient(config),
 ];
 
 const targets: CheckTarget[] = [
@@ -60,10 +55,6 @@ const targets: CheckTarget[] = [
   {
     label: "Breaking Bad S3E5", type: "series", id: "tt0903747:3:5",
     metadata: { provider: "imdb", baseId: "tt0903747", type: "series", title: "Breaking Bad", aliases: [], year: 2008, season: 3, episode: 5 },
-  },
-  {
-    label: "Los tipos malos S2E5", type: "series", id: "tmdb:281861:2:5", providers: ["gnulahd"],
-    metadata: { provider: "tmdb", baseId: "281861", type: "series", title: "Los tipos malos: Malos comienzos", aliases: ["The Bad Guys: Bad Beginnings"], year: 2025, season: 2, episode: 5 },
   },
 ];
 
@@ -95,7 +86,7 @@ async function validateStream(stream: AddonStream) {
 
 const validations: Validation[] = [];
 for (const target of targets) {
-  for (const provider of providers.filter((item) => !target.providers || target.providers.includes(item.id))) {
+  for (const provider of providers) {
     const service = new ProviderSearchService(config, { resolve: async () => target.metadata }, [{ provider, resolvers: resolver }]);
     try {
       const streams = await service.getStreams(target.type, target.id);

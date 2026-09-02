@@ -12,8 +12,6 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     jkAnimeBaseUrl: "https://jkanime.net",
     cuevanaBaseUrl: "https://cuevana3l.biz",
     laMovieBaseUrl: "https://lamovie.org",
-    gnulaHdBaseUrl: "https://ww3.gnulahd.nu",
-    cineCalidadBaseUrl: "https://www.cinecalidad.am",
     metadataBaseUrl: "https://v3-cinemeta.strem.io",
     metadataFallbackBaseUrl: "https://metadata.example",
     requestTimeoutMs: 2_000,

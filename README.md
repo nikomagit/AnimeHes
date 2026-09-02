@@ -1,6 +1,6 @@
 # AnimeHes para Nuvio/Stremio
 
-AnimeHes es un addon de reproducción directa. Para anime conserva [AnimeAV1](https://animeav1.com/), [Hentaila](https://hentaila.com/) y [JKAnime](https://jkanime.net/); para películas y series añade [Cuevana](https://cuevana3l.biz/), [LaMovie](https://lamovie.org/), [GnulaHD](https://ww3.gnulahd.nu/) y [CineCalidad](https://www.cinecalidad.am/) únicamente como proveedores de streams. Los únicos catálogos anunciados siguen siendo los tres de Hentaila.
+AnimeHes es un addon de reproducción directa. Para anime conserva [AnimeAV1](https://animeav1.com/), [Hentaila](https://hentaila.com/) y [JKAnime](https://jkanime.net/); para películas y series utiliza [Cuevana](https://cuevana3l.biz/) y [LaMovie](https://lamovie.org/) únicamente como proveedores de streams. Los únicos catálogos anunciados siguen siendo los tres de Hentaila.
 
 El manifest incluye el logo oficial del addon en `/logo.jpg`.
 
@@ -38,8 +38,6 @@ Todos aceptan `skip` y traducen el desplazamiento a la página correspondiente d
 - JKAnime: reproductores públicos UM/UMV que exponen HLS directo; funciona solo como proveedor de streams.
 - Cuevana: prioriza Trinity de forma exclusiva cuando sus playlists son válidas; si falla, sondea de manera aislada los reproductores alternativos públicos.
 - LaMovie: usa su API pública de búsqueda, temporadas, episodios y embeds; solo procesa reproductores HTTP y nunca sus campos de descarga.
-- GnulaHD: decodifica la respuesta pública del player y admite Vidara cuando entrega un HLS final verificable.
-- CineCalidad: localiza temporadas/episodios exactos y resuelve Vimeos; ignora trailers y la sección de descargas.
 - Headers de reproducción en `behaviorHints.proxyHeaders` cuando el host los necesita.
 - Deduplicación por URL final y aislamiento de errores: una caída de un proveedor no bloquea a los demás.
 - Caché temporal independiente para búsquedas, catálogos, metadatos y páginas de contenido.
@@ -110,8 +108,6 @@ Copia `.env.example` como `.env` solo si necesitas cambiar valores. `.env` está
 | `JKANIME_BASE_URL` | `https://jkanime.net` | Origen público de JKAnime. |
 | `CUEVANA_BASE_URL` | `https://cuevana3l.biz` | Origen público de Cuevana. |
 | `LAMOVIE_BASE_URL` | `https://lamovie.org` | API/origen público de LaMovie. |
-| `GNULAHD_BASE_URL` | `https://ww3.gnulahd.nu` | API/origen público de GnulaHD. |
-| `CINECALIDAD_BASE_URL` | `https://www.cinecalidad.am` | Origen público de CineCalidad. |
 | `METADATA_BASE_URL` | `https://v3-cinemeta.strem.io` | Metadatos públicos para IMDb. |
 | `METADATA_FALLBACK_BASE_URL` | addon TMDB público | Metadatos públicos para IDs TMDB. |
 | `REQUEST_TIMEOUT_MS` | `10000` | Timeout de proveedores y hosts. |
@@ -152,8 +148,8 @@ Nuvio / Stremio
 
 - `src/providers/svelte/`: cliente compartido para los datos públicos SvelteKit.
 - `src/providers/animeav1/`, `src/providers/hentaila/` y `src/providers/jkanime/`: configuración aislada por proveedor.
-- `src/providers/cuevana/`, `src/providers/lamovie/`, `src/providers/gnulahd/` y `src/providers/cinecalidad/`: clientes de películas y series, sin catálogos.
-- `src/providers/general/`: claves estructuradas de temporada/episodio y resolvers seguros de Trinity, Vimeos, Vidara y fallbacks estáticos.
+- `src/providers/cuevana/` y `src/providers/lamovie/`: clientes de películas y series, sin catálogos.
+- `src/providers/general/`: claves estructuradas de temporada/episodio y resolvers seguros de Trinity, Vimeos y fallbacks estáticos.
 - `src/providers/resolvers.ts`: resolvers directos compartidos y específicos.
 - `src/metadata/`: IDs externos e internos y consultores de metadatos.
 - `src/services/`: catálogos, fichas, matching y búsqueda multi-proveedor.
@@ -183,8 +179,6 @@ Los tests cubren los tres catálogos públicos, manifest, IDs internos y externo
 - [JKAnime](https://jkanime.net/)
 - [Cuevana](https://cuevana3l.biz/)
 - [LaMovie](https://lamovie.org/)
-- [GnulaHD](https://ww3.gnulahd.nu/)
-- [CineCalidad](https://www.cinecalidad.am/)
 
 ## Licencia
 

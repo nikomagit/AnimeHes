@@ -16,7 +16,7 @@ function directHeaders(embedUrl: URL, userAgent: string): Record<string, string>
 }
 
 const CUEVANA_FALLBACK_HOSTS = ["vsembed.ru", "vidlink.pro", "vidapi.xyz"];
-const KNOWN_MEDIA_HOSTS = ["peakstorm.top", "vimeos.zip", "vimeos.net", "s1q2105.com"];
+const KNOWN_MEDIA_HOSTS = ["peakstorm.top", "vimeos.zip", "vimeos.net"];
 
 export class GeneralStreamResolver {
   constructor(private readonly config: AppConfig, private readonly request: FetchText = fetchText) {}
@@ -24,9 +24,9 @@ export class GeneralStreamResolver {
   supports(embed: ProviderEmbed): boolean {
     const server = embed.server.toLocaleLowerCase("en");
     const host = this.host(embed.url);
-    return server === "trinity" || server === "vimeos" || server === "vidara"
+    return server === "trinity" || server === "vimeos"
       || host.endsWith("videasy.net") || host.endsWith("videasy.to")
-      || host.endsWith("vimeos.net") || host.endsWith("vidara.to") || host.endsWith("vidara.so")
+      || host.endsWith("vimeos.net")
       || CUEVANA_FALLBACK_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
   }
 
@@ -36,10 +36,6 @@ export class GeneralStreamResolver {
     if (server === "trinity" || host.endsWith("videasy.net") || host.endsWith("videasy.to")) return this.resolveVideasy(embed);
     if (server === "vimeos" || host.endsWith("vimeos.net")) {
       const stream = await this.resolveVimeos(embed, episodePageUrl);
-      return stream ? [stream] : [];
-    }
-    if (server === "vidara" || host.endsWith("vidara.to") || host.endsWith("vidara.so")) {
-      const stream = await this.resolveVidara(embed);
       return stream ? [stream] : [];
     }
     if (CUEVANA_FALLBACK_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`))) {
@@ -109,44 +105,6 @@ export class GeneralStreamResolver {
       if (!Number.isSafeInteger(index) || index < 0 || index >= symbols.length || index.toString(radix) !== token.toLocaleLowerCase("en")) return token;
       return symbols[index] || token;
     });
-  }
-
-  private async resolveVidara(embed: ProviderEmbed): Promise<ResolvedDirectStream | null> {
-    const source = new URL(embed.url);
-    if ((!allowedHost(source, "vidara.to") && !allowedHost(source, "vidara.so")) || !/^\/e\/[a-z\d]+\/?$/i.test(source.pathname)) return null;
-    const filecode = source.pathname.match(/^\/e\/([a-z\d]+)/i)?.[1];
-    if (!filecode) return null;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.config.requestTimeoutMs);
-    try {
-      const response = await fetch(new URL("/api/stream", source.origin), {
-        method: "POST", redirect: "follow", signal: controller.signal,
-        headers: { "content-type": "application/json", origin: source.origin, referer: source.toString(), "user-agent": this.config.playbackUserAgent },
-        body: JSON.stringify({ filecode, device: "web" }),
-      });
-      if (!response.ok) return null;
-      const body = await response.text();
-      if (Buffer.byteLength(body, "utf8") > this.config.maxResponseBytes) return null;
-      const payload = JSON.parse(body) as Record<string, unknown>;
-      const url = typeof payload.streaming_url === "string"
-        ? this.validMediaUrl(payload.streaming_url, ["s1q2105.com", "vidara.to", "vidara.so"])
-        : null;
-      if (!url) return null;
-      const subtitles = Array.isArray(payload.subtitles) ? payload.subtitles.flatMap((value, index) => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-        const item = value as Record<string, unknown>;
-        const subtitleUrl = typeof item.file_path === "string" ? this.validSubtitleUrl(item.file_path) : null;
-        if (!subtitleUrl || (item.type !== undefined && Number(item.type) !== 0)) return [];
-        return [{ id: `vidara-${index + 1}`, url: subtitleUrl, language: typeof item.language === "string" ? item.language : "Unknown" }];
-      }) : [];
-      return {
-        server: embed.server, language: embed.language, url,
-        type: url.toLocaleLowerCase("en").includes(".m3u8") ? "hls" : "mp4",
-        label: url.toLocaleLowerCase("en").includes(".m3u8") ? "HLS" : "MP4",
-        headers: directHeaders(source, this.config.playbackUserAgent), ...this.details(embed),
-        ...(subtitles.length ? { subtitles } : {}),
-      };
-    } catch { return null; } finally { clearTimeout(timer); }
   }
 
   private async resolveVideasy(embed: ProviderEmbed): Promise<ResolvedDirectStream[]> {

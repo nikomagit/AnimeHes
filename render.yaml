@@ -23,9 +23,5 @@ services:
         value: https://cuevana3l.biz
       - key: LAMOVIE_BASE_URL
         value: https://lamovie.org
-      - key: GNULAHD_BASE_URL
-        value: https://ww3.gnulahd.nu
-      - key: CINECALIDAD_BASE_URL
-        value: https://www.cinecalidad.am
       - key: METADATA_FALLBACK_BASE_URL
         value: https://94c8cb9f702d-tmdb-addon.baby-beamup.club

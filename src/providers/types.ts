@@ -5,9 +5,7 @@ export type ProviderId =
   | "hentaila"
   | "jkanime"
   | "cuevana"
-  | "lamovie"
-  | "gnulahd"
-  | "cinecalidad";
+  | "lamovie";
 export type ProviderCatalogKind = "popular" | "airing" | "uncensored";
 export type ProviderScope = "anime" | "general";
 export type ProviderRequestContext = Pick<

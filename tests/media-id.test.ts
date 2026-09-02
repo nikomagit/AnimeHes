@@ -28,6 +28,7 @@ describe("Nuvio media IDs", () => {
       provider: "jkanime", slug: "haikyuu-third-season", episode: 1,
     });
     expect(() => parseProviderMediaId("animehes:animeav1:../admin")).toThrow();
+    expect(() => parseProviderMediaId("animehes:unsupported:dune")).toThrow();
   });
 
   it("rejects malformed IDs and unsupported types", () => {

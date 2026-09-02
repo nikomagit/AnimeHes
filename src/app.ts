@@ -15,8 +15,6 @@ import { HentailaClient } from "./providers/hentaila/client.js";
 import { JkAnimeClient } from "./providers/jkanime/client.js";
 import { CuevanaClient } from "./providers/cuevana/client.js";
 import { LaMovieClient } from "./providers/lamovie/client.js";
-import { GnulaHdClient } from "./providers/gnulahd/client.js";
-import { CineCalidadClient } from "./providers/cinecalidad/client.js";
 import { CachedDirectMediaProvider } from "./providers/cached.js";
 import { DirectStreamResolverRegistry } from "./providers/resolvers.js";
 import { ProviderCatalogService } from "./services/catalog.js";
@@ -87,10 +85,8 @@ export async function buildApp(
   const jkAnime = new JkAnimeClient(config);
   const cuevana = new CachedDirectMediaProvider(new CuevanaClient(config), config);
   const laMovie = new CachedDirectMediaProvider(new LaMovieClient(config), config);
-  const gnulaHd = new CachedDirectMediaProvider(new GnulaHdClient(config), config);
-  const cineCalidad = new CachedDirectMediaProvider(new CineCalidadClient(config), config);
   const animeProviders = [animeAv1, hentaila, jkAnime];
-  const streamProviders = [cuevana, laMovie, gnulaHd, cineCalidad, ...animeProviders];
+  const streamProviders = [cuevana, laMovie, ...animeProviders];
   const resolvers = new DirectStreamResolverRegistry(config);
   const searchService = dependencies.searchService ?? new ProviderSearchService(
     config,
@@ -109,7 +105,7 @@ export async function buildApp(
       manifest: "/manifest.json",
       logo: "/logo.jpg",
       health: "/health",
-      sources: ["AnimeAV1", "Hentaila", "JKAnime", "Cuevana", "LaMovie", "GnulaHD", "CineCalidad"],
+      sources: ["AnimeAV1", "Hentaila", "JKAnime", "Cuevana", "LaMovie"],
       streaming: "Direct HTTP/HTTPS only",
       p2p: false,
     };
@@ -129,7 +125,7 @@ export async function buildApp(
 
   app.get("/health", async (_request, reply) => {
     void reply.header("cache-control", "no-store");
-    return { status: "ok", version: manifest.version, sources: ["AnimeAV1", "Hentaila", "JKAnime", "Cuevana", "LaMovie", "GnulaHD", "CineCalidad"], p2p: false };
+    return { status: "ok", version: manifest.version, sources: ["AnimeAV1", "Hentaila", "JKAnime", "Cuevana", "LaMovie"], p2p: false };
   });
 
   const serveCatalog = async (
