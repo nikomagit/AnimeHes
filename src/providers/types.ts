@@ -1,5 +1,19 @@
-export type ProviderId = "animeav1" | "hentaila" | "jkanime";
+import type { MediaMetadata, MediaType } from "../types.js";
+
+export type ProviderId =
+  | "animeav1"
+  | "hentaila"
+  | "jkanime"
+  | "cuevana"
+  | "lamovie"
+  | "gnulahd"
+  | "cinecalidad";
 export type ProviderCatalogKind = "popular" | "airing" | "uncensored";
+export type ProviderScope = "anime" | "general";
+export type ProviderRequestContext = Pick<
+  MediaMetadata,
+  "type" | "title" | "aliases" | "year" | "season" | "episode"
+>;
 
 export interface ProviderCategory {
   id?: number;
@@ -19,6 +33,8 @@ export interface ProviderSearchResult {
   slug: string;
   synopsis?: string;
   category?: ProviderCategory;
+  mediaType?: MediaType;
+  year?: number;
 }
 
 export interface ProviderEpisodeSummary {
@@ -49,18 +65,28 @@ export interface ProviderMedia {
   category?: ProviderCategory;
   genres: ProviderGenre[];
   episodes: ProviderEpisodeSummary[];
+  mediaType?: MediaType;
+}
+
+export interface ProviderSubtitle {
+  id?: string;
+  url: string;
+  language: string;
 }
 
 export interface ProviderEmbed {
   server: string;
   url: string;
   language: string;
+  quality?: string;
+  subtitles?: ProviderSubtitle[];
 }
 
 export interface ProviderEpisodePage {
   media: ProviderMedia;
   episodeNumber: number;
   embeds: ProviderEmbed[];
+  pageUrl?: string;
 }
 
 export interface ProviderCatalogPage {
@@ -77,10 +103,11 @@ export interface ProviderCatalogPage {
 export interface DirectMediaProvider {
   readonly id: ProviderId;
   readonly name: string;
+  readonly scope?: ProviderScope;
   readonly baseUrl: string;
   readonly cdnBaseUrl: string;
-  search(query: string): Promise<ProviderSearchResult[]>;
+  search(query: string, context?: ProviderRequestContext): Promise<ProviderSearchResult[]>;
   getCatalog(kind: ProviderCatalogKind, page: number): Promise<ProviderCatalogPage>;
-  getMedia(slug: string): Promise<ProviderMedia | null>;
-  getEpisode(slug: string, episode: number): Promise<ProviderEpisodePage | null>;
+  getMedia(slug: string, context?: ProviderRequestContext): Promise<ProviderMedia | null>;
+  getEpisode(slug: string, episode: number, context?: ProviderRequestContext): Promise<ProviderEpisodePage | null>;
 }

@@ -21,7 +21,7 @@ describe("HTTP addon interface", () => {
     const body = response.json();
     expect(body).toMatchObject({
       id: "org.nuvio.animehes",
-      version: "1.2.2",
+      version: "1.3.0",
       description: "Streams HTTP/HTTPS directos de AnimeAv1, JKanime y Hentaila, sin P2P ni adicionales. No esta vinculado a ninguna de las 3 plataformas mencionadas.",
       logo: "https://animehes.onrender.com/logo.jpg",
       behaviorHints: { adult: true, p2p: false, configurable: false },

@@ -30,6 +30,15 @@ describe("conservative title matching", () => {
     expect(titleSimilarity("Love Me Kaede", "Love Colon")).toBeLessThan(0.72);
   });
 
+  it("matches a first-installment metadata suffix to the base theatrical title", () => {
+    expect(titleSimilarity("Dune: Part One", "Dune")).toBeGreaterThan(0.95);
+    expect(titleSimilarity("Dune: Part One", "Dune: Part Two")).toBeLessThan(0.9);
+    expect(buildSearchQueries({
+      provider: "imdb", baseId: "tt1160419", type: "movie", title: "Dune: Part One",
+      aliases: ["Dune: Part One"], year: 2021,
+    }, 4)).toEqual(["Dune: Part One", "Dune"]);
+  });
+
   it("uses alternative and Japanese titles and checks the year", () => {
     const score = detailedScore(metadata, {
       title: "Kaede to Suzu The Animation",
@@ -85,6 +94,22 @@ describe("conservative title matching", () => {
     expect(isSeasonCompatible(seasonThree, base)).toBe(false);
     expect(isSeasonCompatible(seasonThree, third)).toBe(true);
     expect(detailedScore(seasonThree, third)).toBeGreaterThan(detailedScore(seasonThree, base));
+  });
+
+  it("accepts an exact later season inside a conventional multi-season series", () => {
+    const breakingBad: MediaMetadata = {
+      provider: "imdb", baseId: "tt0903747", type: "series", title: "Breaking Bad",
+      aliases: ["Breaking Bad"], year: 2008, season: 3, episode: 5,
+      seasonYear: 2010, seasonEpisodeCount: 13,
+    };
+    const media = {
+      title: "Breaking Bad", slug: "series-breaking-bad", aka: {}, startDate: "2008-01-20",
+      genres: [], episodes: Array.from({ length: 13 }, (_, index) => ({
+        number: 30_001 + index, season: 3, relativeNumber: index + 1,
+      })),
+    };
+    expect(isSeasonCompatible(breakingBad, media)).toBe(true);
+    expect(detailedScore(breakingBad, media)).toBeGreaterThan(0.9);
   });
 
   it("uses year and episode count for a named season without a number", () => {

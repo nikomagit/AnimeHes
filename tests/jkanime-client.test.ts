@@ -70,4 +70,12 @@ describe("JKAnime public client", () => {
     await expect(client.getEpisode("../admin", 1)).resolves.toBeNull();
     expect(request).not.toHaveBeenCalled();
   });
+
+  it("uses the public latest-episode link when an airing title reports zero episodes", async () => {
+    const fixture = mediaFixture
+      .replace("<li><span>Episodios:</span> 10</li>", "<li><span>Episodios:</span> 0</li>")
+      .concat('<a href="https://jkanime.net/haikyuu-third-season/10/" id="uep">Último episodio</a>');
+    const client = new JkAnimeClient(testConfig(), vi.fn().mockResolvedValue(fixture));
+    await expect(client.getMedia("haikyuu-third-season")).resolves.toMatchObject({ episodesCount: 10 });
+  });
 });

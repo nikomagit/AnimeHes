@@ -25,10 +25,13 @@ export function parseProviderMediaId(rawId: string): ParsedProviderMediaId | nul
   if (parts.length < 3 || parts.length > 4) throw new InvalidMediaRequestError("Malformed AnimeHes ID");
   const provider = parts[1];
   const slug = parts[2];
-  if ((provider !== "animeav1" && provider !== "hentaila" && provider !== "jkanime") || !slug || !SAFE_SLUG.test(slug)) {
+  const providers: ProviderId[] = [
+    "animeav1", "hentaila", "jkanime", "cuevana", "lamovie", "gnulahd", "cinecalidad",
+  ];
+  if (!providers.includes(provider as ProviderId) || !slug || !SAFE_SLUG.test(slug)) {
     throw new InvalidMediaRequestError("Malformed AnimeHes provider ID");
   }
-  if (parts.length === 3) return { provider, slug };
+  if (parts.length === 3) return { provider: provider as ProviderId, slug };
   const rawEpisode = parts[3];
   if (!rawEpisode || !POSITIVE_INTEGER.test(rawEpisode)) {
     throw new InvalidMediaRequestError("Malformed AnimeHes episode ID");
@@ -37,5 +40,5 @@ export function parseProviderMediaId(rawId: string): ParsedProviderMediaId | nul
   if (!Number.isSafeInteger(episode) || episode < 1 || episode > 100_000) {
     throw new InvalidMediaRequestError("Invalid AnimeHes episode number");
   }
-  return { provider, slug, episode };
+  return { provider: provider as ProviderId, slug, episode };
 }

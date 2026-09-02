@@ -1,6 +1,6 @@
 # Investigación y decisiones técnicas
 
-Revisión en vivo actualizada el 1 de septiembre de 2026. AnimeAV1, Hentaila, JKAnime y sus hosts son servicios externos y pueden cambiar. Los tests con fixtures protegen el contrato conocido; un cambio incompatible del proveedor requerirá actualizar el cliente o el resolver afectado.
+Revisión en vivo actualizada el 1 de septiembre de 2026. Todos los proveedores y hosts son servicios externos y pueden cambiar. Los tests con fixtures protegen el contrato conocido; un cambio incompatible del proveedor requerirá actualizar el cliente o el resolver afectado.
 
 ## Contrato Nuvio/Stremio
 
@@ -49,7 +49,7 @@ AnimeAV1 y Hentaila usan una aplicación SvelteKit con una estructura pública e
 
 El frontend traduce `order=popular` al campo de votos en orden descendente. En la prueba real de Hentaila, la respuesta de Sin Censura confirmó `orderKey: popular`, `uncensored: true`, 20 elementos por página y 16 páginas. Los votos de los primeros ocho elementos fueron descendentes: 40237, 38734, 35908, 26718, 25683, 18802, 17050 y 15348.
 
-La paginación del protocolo se convierte con `page = floor(skip / recordsPerPage) + 1`. En el manifest 1.2.2 esta navegación se expone únicamente para los tres catálogos de Hentaila.
+La paginación del protocolo se convierte con `page = floor(skip / recordsPerPage) + 1`. En el manifest 1.3.0 esta navegación se expone únicamente para los tres catálogos de Hentaila.
 
 ## AnimeAV1
 
@@ -82,6 +82,33 @@ JKAnime se integra únicamente como fuente de streams, sin catálogos públicos 
 
 Solo se aceptan los reproductores públicos `UM` y `UMV` cuando su HTML expone una playlist HLS directa en un dominio permitido de `playmudos.com`. Los reproductores que no entregan una URL reproducible de forma pública se omiten. En la validación real, UM y UMV condujeron a la misma playlist y la deduplicación conservó una sola fuente. No se ejecuta JavaScript remoto, no se intenta sortear protección y no se usan cookies autenticadas.
 
+## Películas y series
+
+Los cuatro proveedores generales son exclusivamente fuentes de `/stream`: no se agregaron catálogos al manifest. La prioridad de respuesta es Cuevana, LaMovie, GnulaHD y CineCalidad; se consultan de forma aislada y no se detiene la búsqueda al obtener el primer resultado.
+
+### Cuevana y Trinity
+
+- La búsqueda pública usa `/explorar?s={título}` y diferencia `/pelicula/` de `/serie/`.
+- Las temporadas usan `/serie/{slug}/temporada-{n}` y los episodios `/serie/{slug}/episodio-{temporada}x{episodio}`.
+- Los wrappers públicos contienen el embed final codificado en Base64; se decodifica como texto, sin ejecutar JavaScript.
+- Trinity apunta a Videasy. Su API pública entrega una semilla y un payload cifrado que se descifra localmente con el mismo algoritmo determinista del frontend público.
+- Cada HLS Trinity se valida con una petición real y `#EXTM3U` antes de aceptarlo. El CDN comprobado rechaza `Origin` y `Referer`, por lo que se conserva únicamente el `User-Agent` verificado.
+- Si al menos un HLS Trinity supera la validación, se devuelven solo streams Trinity. Si todos fallan, el registry sondea los demás embeds de Cuevana de manera independiente.
+
+En la inspección actual, los alternativos publicados fueron Goldmember (`vsembed.ru`), Death Star (`vidlink.pro`) y Mahoutokoro (`vidapi.xyz`). Sus páginas públicas no expusieron una URL multimedia final estática en un dominio permitido: dependen de aplicaciones JavaScript/niveles adicionales de agregación. Se probaron, pero no se añadieron resolvers frágiles ni ejecución remota; por ahora quedan descartados.
+
+### LaMovie
+
+LaMovie expone JSON público para búsqueda (`/wp-api/v1/search`), fichas, listado de episodios por temporada y player. El cliente usa los IDs internos de episodio y solo procesa `data.embeds`; ignora completamente `downloads`, magnets o cualquier mecanismo de descarga. El embed Vimeos se desempaqueta de forma estática y su master HLS se conserva.
+
+### GnulaHD
+
+La búsqueda pública está en `/wp-json/gnrd/v1/search`. Las páginas de serie exponen ID, token, temporada y episodio de forma estructurada. El player devuelve un JSON Base64 con XOR de clave fija, igual que el frontend público. Vidara funciona para los títulos que lo ofrecen: su endpoint público `/api/stream` entrega HLS y subtítulos. Otros mirrors observados (`bysevepoin.com`, Voe y OK.ru) no entregaron una URL final verificable mediante el flujo permitido y se omiten. Por esto el proveedor es funcional, pero su cobertura de series es parcial.
+
+### CineCalidad
+
+La búsqueda usa `/?s={título}` y distingue `/ver-pelicula/` de `/ver-serie/`. La ficha de serie contiene enlaces exactos `/ver-el-episodio/{slug}-{temporada}x{episodio}/`. Solo se analiza el panel `VER ONLINE`: trailers de YouTube y la sección de descargas se ignoran. Vimeos entrega un HLS reproducible; Videoapp, Voe, Goodstream, Hlswish y Filemoon se observaron, pero no se añadieron porque sus páginas actuales no ofrecieron una resolución final estable dentro del alcance permitido.
+
 ## Matching, IDs y metadatos
 
 Los elementos de catálogo usan `animehes:{provider}:{slug}` y los episodios `animehes:{provider}:{slug}:{episode}`. Esto evita una búsqueda redundante cuando Nuvio navega desde AnimeHes.
@@ -110,7 +137,7 @@ Las pruebas automatizadas aíslan los tres proveedores con `Promise.allSettled`:
 
 ## Resultado de la validación en vivo
 
-- Manifest v1.2.2 con solo tres catálogos Hentaila, logo propio y `p2p: false`.
+- Manifest v1.3.0 con solo tres catálogos Hentaila, logo propio, descripción intacta y `p2p: false`.
 - AnimeAV1 y JKAnime permanecen como proveedores internos de streams, sin catálogos anunciados.
 - Metadatos, póster, géneros y episodios de los proveedores cuando la fuente los publica.
 - AnimeAV1: 2 streams directos en el episodio probado.
@@ -121,6 +148,10 @@ Las pruebas automatizadas aíslan los tres proveedores con `Promise.allSettled`:
 - Resolución por IMDb comprobada en paralelo; cada proveedor devuelve únicamente coincidencias suficientemente sólidas.
 - HLS y MP4 finales respondieron correctamente con los headers declarados.
 - Ninguna respuesta inspeccionada contenía magnets, trackers ni `infoHash`.
+- Cuevana/Trinity: HLS `200`, `application/vnd.apple.mpegurl` y `#EXTM3U` en Dune (2021), The Matrix (1999), Breaking Bad T1E1 y T3E5.
+- LaMovie/Vimeos: HLS válido en las dos películas y los dos episodios de Breaking Bad.
+- GnulaHD/Vidara: dos audios HLS válidos en Dune (2021); algunos títulos/episodios no ofrecen un servidor compatible y se omiten.
+- CineCalidad/Vimeos: HLS válido en Dune, The Matrix y Breaking Bad T1E1; una consulta repetida de T3E5 sufrió disponibilidad intermitente, aunque el flujo individual de ficha, episodio y Vimeos sí resolvió correctamente.
 
 ## Temporadas publicadas como títulos independientes
 
@@ -134,5 +165,7 @@ La regresión se comprobó con `tt3398540:1:1` hasta `tt3398540:4:1`: la tempora
 - JKAnime UM y UMV pueden apuntar al mismo HLS; se devuelve una sola entrada después de deduplicar.
 - La resolución de IDs TMDB depende de la disponibilidad del addon público de metadatos configurado.
 - Si un proveedor divide una temporada en cours sin una numeración inequívoca de episodios absolutos, AnimeHes puede omitir ese proveedor para evitar reproducir el episodio equivocado.
+- Trinity depende del formato público actual de Videasy y de su dominio CDN permitido `peakstorm.top`; un cambio de API o CDN hará que se omita y active los fallbacks, no que se acepte una URL arbitraria.
+- Cuevana alternativo y varios mirrors de GnulaHD/CineCalidad quedan sin soporte hasta que expongan una URL final pública y estable sin ejecutar JavaScript remoto ni eludir controles.
 
 La comprobación confirma el flujo al momento indicado, pero no garantiza la disponibilidad futura de contenido o mirrors de terceros.

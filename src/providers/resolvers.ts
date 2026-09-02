@@ -1,6 +1,7 @@
 import type { AppConfig } from "../config.js";
 import { fetchText, type FetchText } from "../lib/http.js";
 import type { ProviderEmbed } from "./types.js";
+import { GeneralStreamResolver } from "./general/resolvers.js";
 
 export interface ResolvedDirectStream {
   server: string;
@@ -9,6 +10,8 @@ export interface ResolvedDirectStream {
   type: "hls" | "mp4";
   label: "HLS" | "MP4";
   headers: Record<string, string>;
+  quality?: string;
+  subtitles?: Array<{ id: string; url: string; language: string }>;
 }
 
 export interface DirectStreamResolver {
@@ -48,19 +51,39 @@ function firstMatch(body: string, patterns: RegExp[]): string | null {
 }
 
 export class DirectStreamResolverRegistry implements DirectStreamResolver {
-  constructor(private readonly config: AppConfig, private readonly request: FetchText = fetchText) {}
+  private readonly general: GeneralStreamResolver;
+
+  constructor(private readonly config: AppConfig, private readonly request: FetchText = fetchText) {
+    this.general = new GeneralStreamResolver(config, request);
+  }
 
   async resolveAll(embeds: ProviderEmbed[], episodePageUrl: string): Promise<ResolvedDirectStream[]> {
+    const trinity = embeds.filter((embed) => embed.server.toLocaleLowerCase("en") === "trinity");
+    if (trinity.length > 0) {
+      const preferred = await this.resolveEmbeds(trinity, episodePageUrl);
+      if (preferred.length > 0) return preferred.slice(0, this.config.maxStreams);
+    }
+    return (await this.resolveEmbeds(embeds.filter((embed) => !trinity.includes(embed)), episodePageUrl))
+      .slice(0, this.config.maxStreams);
+  }
+
+  private async resolveEmbeds(embeds: ProviderEmbed[], episodePageUrl: string): Promise<ResolvedDirectStream[]> {
     const settled = await Promise.allSettled(
-      embeds.filter((embed) => this.isSupported(embed)).map((embed) => this.resolve(embed, episodePageUrl)),
+      embeds.filter((embed) => this.isSupported(embed) || this.general.supports(embed)).map(async (embed) => {
+        if (this.general.supports(embed)) return this.general.resolve(embed, episodePageUrl);
+        const stream = await this.resolve(embed, episodePageUrl);
+        return stream ? [stream] : [];
+      }),
     );
     const deduplicated = new Map<string, ResolvedDirectStream>();
     for (const result of settled) {
-      if (result.status !== "fulfilled" || !result.value) continue;
-      const key = result.value.url.toLocaleLowerCase("en");
-      if (!deduplicated.has(key)) deduplicated.set(key, result.value);
+      if (result.status !== "fulfilled") continue;
+      for (const stream of result.value) {
+        const key = stream.url.toLocaleLowerCase("en");
+        if (!deduplicated.has(key)) deduplicated.set(key, stream);
+      }
     }
-    return [...deduplicated.values()].slice(0, this.config.maxStreams);
+    return [...deduplicated.values()];
   }
 
   private isSupported(embed: ProviderEmbed): boolean {

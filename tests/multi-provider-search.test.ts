@@ -155,7 +155,9 @@ describe("multi-provider stream orchestration", () => {
       { provider: anime, resolvers: resolver() },
     ]);
     const streams = await service.getStreams("series", "tt3398540:3:1");
-    expect(anime.getEpisode).toHaveBeenCalledWith("haikyuu-third-season", 1);
+    expect(anime.getEpisode).toHaveBeenCalledWith("haikyuu-third-season", 1, expect.objectContaining({
+      type: "series", season: 3, episode: 1,
+    }));
     expect(streams[0]?.title).toContain("Karasuno Koukou");
   });
 
@@ -195,7 +197,9 @@ describe("multi-provider stream orchestration", () => {
       { provider: jkanime, resolvers: resolver("https://nika.playmudos.com/title/master.m3u8") },
     ]);
     const streams = await service.getStreams("series", "tt3398540:3:1");
-    expect(jkanime.getEpisode).toHaveBeenCalledWith("haikyuu-third-season", 1);
+    expect(jkanime.getEpisode).toHaveBeenCalledWith("haikyuu-third-season", 1, expect.objectContaining({
+      type: "series", season: 3, episode: 1,
+    }));
     expect(streams[0]?.title).toContain("Third Season");
   });
 });

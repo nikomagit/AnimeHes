@@ -2,7 +2,7 @@ import { catalogDefinitions } from "./catalogs.js";
 
 export const manifest = Object.freeze({
   id: "org.nuvio.animehes",
-  version: "1.2.2",
+  version: "1.3.0",
   name: "AnimeHes",
   logo: "https://animehes.onrender.com/logo.jpg",
   description:

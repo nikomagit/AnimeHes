@@ -156,7 +156,12 @@ export class JkAnimeClient implements DirectMediaProvider {
       this.baseUrl,
     );
     const rawType = first(body, /<li[^>]+rel=["']tipo["'][^>]*>\s*<span[^>]*>\s*Tipo:\s*<\/span>\s*([^<]+)/i) ?? "Serie";
-    const episodesCount = positiveInteger(first(body, /<span[^>]*>\s*Episodios:\s*<\/span>\s*(\d+)/i));
+    const declaredEpisodes = positiveInteger(first(body, /<span[^>]*>\s*Episodios:\s*<\/span>\s*(\d+)/i));
+    const latestEpisode = positiveInteger(
+      body.match(/<a\b[^>]*href=["'][^"']*\/(\d+)\/?["'][^>]*id=["']uep["']/i)?.[1]
+      ?? body.match(/<a\b[^>]*id=["']uep["'][^>]*href=["'][^"']*\/(\d+)\/?["']/i)?.[1],
+    );
+    const episodesCount = declaredEpisodes ?? latestEpisode;
     if (episodesCount === undefined) throw new UpstreamPayloadError("JKAnime", "missing episode count");
     const year = first(body, /<span[^>]*>\s*Temporada:\s*<\/span>[\s\S]{0,300}?(\d{4})/i)
       ?? first(body, /<span[^>]*>\s*Emitido:\s*<\/span>[\s\S]{0,200}?(\d{4})/i);

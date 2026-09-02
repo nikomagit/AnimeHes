@@ -2,6 +2,8 @@ import type { MediaMetadata } from "../types.js";
 import type { ProviderMedia, ProviderSearchResult } from "../providers/types.js";
 
 const GENERIC_SUFFIX = /\b(?:the\s+animation|animation|animated|ova)\b/gu;
+const FIRST_INSTALLMENT_SUFFIX = /\s+(?:part|parte|chapter|capitulo)\s+(?:one|uno|1)$/u;
+const HUMAN_FIRST_INSTALLMENT_SUFFIX = /[\s:–—-]+(?:part|parte|chapter|cap[ií]tulo)\s+(?:one|uno|1)\s*$/iu;
 const EXTRA_CATEGORY = /\b(?:movie|pelicula|film|ova|special|especial)\b/u;
 const ORDINAL_SEASONS = new Map<string, number>([
   ["first", 1], ["second", 2], ["third", 3], ["fourth", 4], ["fifth", 5],
@@ -24,7 +26,8 @@ function variants(value: string): string[] {
   const normalized = normalizeTitle(value);
   if (!normalized) return [];
   const withoutSuffix = normalized.replace(GENERIC_SUFFIX, " ").replace(/\s+/g, " ").trim();
-  return [...new Set([normalized, withoutSuffix].filter(Boolean))];
+  const withoutFirstInstallment = withoutSuffix.replace(FIRST_INSTALLMENT_SUFFIX, "").trim();
+  return [...new Set([normalized, withoutSuffix, withoutFirstInstallment].filter(Boolean))];
 }
 
 function tokenF1(left: string, right: string): number {
@@ -173,14 +176,20 @@ export function detailedScore(metadata: MediaMetadata, media: ProviderMedia): nu
   }
   const season = requestedSeason(metadata);
   if (season !== undefined && season > 1) {
-    const marker = inferSeasonNumber(media.title, ...Object.values(media.aka), media.slug);
-    if (marker === season) score += 0.35;
-    if (metadata.seasonYear !== undefined && candidateYear !== undefined) {
-      score += candidateYear === metadata.seasonYear ? 0.35 : -0.2;
+    if (structuredSeason(media, season)) {
+      // Conventional series retain the base title and original premiere year;
+      // their explicit S/E structure is stronger than separate-season heuristics.
+      score += 0.08;
+    } else {
+      const marker = inferSeasonNumber(media.title, ...Object.values(media.aka), media.slug);
+      if (marker === season) score += 0.35;
+      if (metadata.seasonYear !== undefined && candidateYear !== undefined) {
+        score += candidateYear === metadata.seasonYear ? 0.35 : -0.2;
+      }
+      if (metadata.seasonEpisodeCount !== undefined
+        && media.episodes.length === metadata.seasonEpisodeCount) score += 0.12;
+      if (exactBaseTitle(metadata, media)) score -= 0.3;
     }
-    if (metadata.seasonEpisodeCount !== undefined
-      && media.episodes.length === metadata.seasonEpisodeCount) score += 0.12;
-    if (exactBaseTitle(metadata, media)) score -= 0.3;
   }
   return Math.max(0, Math.min(1, score));
 }
@@ -194,7 +203,12 @@ function ordinal(value: number): string {
 }
 
 export function buildSearchQueries(metadata: MediaMetadata, maximum: number): string[] {
-  const base = mediaAliases(metadata);
+  const base = mediaAliases(metadata).flatMap((title) => {
+    const withoutFirstInstallment = title.replace(HUMAN_FIRST_INSTALLMENT_SUFFIX, "").trim();
+    return withoutFirstInstallment && withoutFirstInstallment !== title
+      ? [title, withoutFirstInstallment]
+      : [title];
+  });
   const season = requestedSeason(metadata);
   const candidates = season && season > 1
     ? base.flatMap((title) => [

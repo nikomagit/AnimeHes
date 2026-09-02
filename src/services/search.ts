@@ -68,12 +68,15 @@ export class ProviderSearchService implements StreamSearchService {
 
     const parsed = parseMediaId(type, rawId);
     const metadata = await this.metadataProvider.resolve(type, parsed);
+    const activeProviders = metadata.provider === "kitsu"
+      ? this.providers.filter((runtime) => runtime.provider.scope !== "general")
+      : this.providers;
     const settled = await Promise.allSettled(
-      this.providers.map(async (runtime) => {
+      activeProviders.map(async (runtime) => {
         const match = await this.findBestMatch(runtime.provider, metadata);
         if (!match) return [];
         const episodeNumber = chooseEpisode(metadata, match);
-        return episodeNumber === null ? [] : this.resolveMedia(runtime, match, episodeNumber);
+        return episodeNumber === null ? [] : this.resolveMedia(runtime, match, episodeNumber, metadata);
       }),
     );
     const deduplicated = new Map<string, AddonStream>();
@@ -87,42 +90,58 @@ export class ProviderSearchService implements StreamSearchService {
     return [...deduplicated.values()].slice(0, this.config.maxStreams);
   }
 
-  private async resolveMedia(runtime: ProviderRuntime, media: ProviderMedia, episodeNumber: number): Promise<AddonStream[]> {
-    const episode = await runtime.provider.getEpisode(media.slug, episodeNumber);
+  private async resolveMedia(runtime: ProviderRuntime, media: ProviderMedia, episodeNumber: number, metadata?: MediaMetadata): Promise<AddonStream[]> {
+    const episode = metadata
+      ? await runtime.provider.getEpisode(media.slug, episodeNumber, metadata)
+      : await runtime.provider.getEpisode(media.slug, episodeNumber);
     if (!episode || episode.media.slug !== media.slug) return [];
     const episodePath = runtime.provider.id === "jkanime"
       ? `${encodeURIComponent(media.slug)}/${episodeNumber}/`
       : `media/${encodeURIComponent(media.slug)}/${episodeNumber}`;
-    const episodePageUrl = new URL(episodePath, `${runtime.provider.baseUrl}/`).toString();
+    const episodePageUrl = episode.pageUrl ?? new URL(episodePath, `${runtime.provider.baseUrl}/`).toString();
     const resolved = await runtime.resolvers.resolveAll(episode.embeds, episodePageUrl);
     const title = safeFilename(media.title);
-    const episodeLabel = `Episodio ${episodeNumber}`;
+    const summary = media.episodes.find((item) => item.number === episodeNumber);
+    const season = summary?.season ?? metadata?.season;
+    const relativeEpisode = summary?.relativeNumber ?? metadata?.episode ?? episodeNumber;
+    const isMovie = (media.mediaType ?? metadata?.type) === "movie";
+    const episodeLabel = isMovie ? "" : season
+      ? `T${season} E${relativeEpisode}`
+      : `Episodio ${relativeEpisode}`;
     return resolved.map((stream) => {
-      const language = stream.language ? ` • ${stream.language}` : "";
+      const details = [runtime.provider.name, stream.server, stream.language, stream.quality, stream.label]
+        .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
+        .join(" • ");
       const extension = stream.type === "hls" ? "m3u8" : "mp4";
-      return {
+      const result: AddonStream = {
         name: `AnimeHes\n${runtime.provider.name} • ${stream.server}`,
-        title: `${title} • ${episodeLabel}\n${runtime.provider.name} • ${stream.server} • ${stream.label}${language}`,
-        description: `${title} • ${episodeLabel} • ${runtime.provider.name} • ${stream.server} • ${stream.label}${language}`,
+        title: `${title}${episodeLabel ? ` • ${episodeLabel}` : ""}\n${details}`,
+        description: `${title}${episodeLabel ? ` • ${episodeLabel}` : ""} • ${details}`,
         type: stream.type,
         url: stream.url,
         behaviorHints: {
           bingeGroup: `animehes|${runtime.provider.id}|${normalizeTitle(stream.server)}|${stream.language.toLocaleLowerCase("en")}`,
-          filename: `${title} - E${String(episodeNumber).padStart(2, "0")} - ${runtime.provider.name} - ${stream.server}.${extension}`,
+          filename: `${title}${isMovie ? "" : season ? ` - S${String(season).padStart(2, "0")}E${String(relativeEpisode).padStart(2, "0")}` : ` - E${String(relativeEpisode).padStart(2, "0")}`} - ${runtime.provider.name} - ${stream.server}.${extension}`,
           notWebReady: true,
           proxyHeaders: { request: stream.headers },
         },
       };
+      if (stream.subtitles?.length) {
+        result.subtitles = stream.subtitles.map((subtitle) => ({ id: subtitle.id, url: subtitle.url, lang: subtitle.language }));
+      }
+      return result;
     });
   }
 
   private async findBestMatch(provider: DirectMediaProvider, metadata: MediaMetadata): Promise<ProviderMedia | null> {
     const queries = buildSearchQueries(metadata, this.config.maxSearchQueries);
-    const searches = await Promise.allSettled(queries.map((query) => provider.search(query)));
+    const searches = await Promise.allSettled(queries.map((query) => provider.search(query, metadata)));
     const candidates = new Map<string, Candidate>();
     for (const search of searches) {
       if (search.status !== "fulfilled") continue;
       for (const result of search.value) {
+        if (result.mediaType && result.mediaType !== metadata.type) continue;
+        if (metadata.year !== undefined && result.year !== undefined && Math.abs(metadata.year - result.year) > 1) continue;
         const score = preliminaryScore(metadata, result);
         const existing = candidates.get(result.slug);
         if (!existing || score > existing.preliminary) candidates.set(result.slug, { result, preliminary: score });
@@ -135,10 +154,11 @@ export class ProviderSearchService implements StreamSearchService {
     const shortlist = [...candidates.values()]
       .sort((left, right) => right.preliminary - left.preliminary)
       .slice(0, candidateLimit);
-    const details = await Promise.allSettled(shortlist.map(async (candidate) => ({ media: await provider.getMedia(candidate.result.slug) })));
+    const details = await Promise.allSettled(shortlist.map(async (candidate) => ({ media: await provider.getMedia(candidate.result.slug, metadata) })));
     let best: { media: ProviderMedia; score: number } | undefined;
     for (const detail of details) {
       if (detail.status !== "fulfilled" || !detail.value.media) continue;
+      if (detail.value.media.mediaType && detail.value.media.mediaType !== metadata.type) continue;
       if (!isSeasonCompatible(metadata, detail.value.media)) continue;
       const score = detailedScore(metadata, detail.value.media);
       if (!best || score > best.score) best = { media: detail.value.media, score };

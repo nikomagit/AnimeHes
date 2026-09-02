@@ -53,7 +53,9 @@ describe("end-to-end search orchestration", () => {
     };
     const service = new HentailaSearchService(testConfig(), metadata, provider, resolvers);
     const streams = await service.getStreams("series", "kitsu:123:2");
-    expect(provider.getEpisode).toHaveBeenCalledWith(media.slug, 2);
+    expect(provider.getEpisode).toHaveBeenCalledWith(media.slug, 2, expect.objectContaining({
+      type: "series", season: 1, episode: 2,
+    }));
     expect(streams).toHaveLength(1);
     expect(streams[0]).toMatchObject({
       name: "AnimeHes\nHentaila • VIP",

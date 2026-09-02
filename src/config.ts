@@ -7,6 +7,10 @@ export interface AppConfig {
   animeAv1BaseUrl: string;
   animeAv1CdnBaseUrl: string;
   jkAnimeBaseUrl: string;
+  cuevanaBaseUrl: string;
+  laMovieBaseUrl: string;
+  gnulaHdBaseUrl: string;
+  cineCalidadBaseUrl: string;
   metadataBaseUrl: string;
   metadataFallbackBaseUrl: string;
   requestTimeoutMs: number;
@@ -84,6 +88,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     animeAv1BaseUrl: baseUrl(env, "ANIMEAV1_BASE_URL", "https://animeav1.com"),
     animeAv1CdnBaseUrl: baseUrl(env, "ANIMEAV1_CDN_BASE_URL", "https://cdn.animeav1.com"),
     jkAnimeBaseUrl: baseUrl(env, "JKANIME_BASE_URL", "https://jkanime.net"),
+    cuevanaBaseUrl: baseUrl(env, "CUEVANA_BASE_URL", "https://cuevana3l.biz"),
+    laMovieBaseUrl: baseUrl(env, "LAMOVIE_BASE_URL", "https://lamovie.org"),
+    gnulaHdBaseUrl: baseUrl(env, "GNULAHD_BASE_URL", "https://ww3.gnulahd.nu"),
+    cineCalidadBaseUrl: baseUrl(env, "CINECALIDAD_BASE_URL", "https://www.cinecalidad.am"),
     metadataBaseUrl: baseUrl(env, "METADATA_BASE_URL", "https://v3-cinemeta.strem.io"),
     metadataFallbackBaseUrl: baseUrl(
       env,
@@ -133,7 +141,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ),
     cacheMaxEntries: integer(env, "CACHE_MAX_ENTRIES", 500, 1, 10_000),
     userAgent:
-      env.USER_AGENT?.trim() || "AnimeHes/1.2 (+self-hosted)",
+      env.USER_AGENT?.trim() || "AnimeHes/1.3 (+self-hosted)",
     playbackUserAgent:
       env.PLAYBACK_USER_AGENT?.trim() ||
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +

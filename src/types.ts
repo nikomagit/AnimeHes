@@ -38,6 +38,7 @@ export interface AddonStream {
   type: "hls" | "mp4";
   url: string;
   behaviorHints: StreamBehaviorHints;
+  subtitles?: Array<{ id: string; url: string; lang: string }>;
 }
 
 export interface AddonMetaPreview {
