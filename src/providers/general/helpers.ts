@@ -69,6 +69,18 @@ export function integer(value: unknown): number | undefined {
   return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
+export function tmdbIdFromUrl(value: string): number | undefined {
+  try {
+    const url = new URL(decodeHtml(value));
+    const queryId = url.searchParams.get("tmdb") ?? url.searchParams.get("tmdbId");
+    const pathId = url.pathname.match(/\/(?:e\/)?(?:movie|tv)\/(\d+)(?:\/|$)/iu)?.[1];
+    const id = integer(queryId ?? pathId);
+    return id !== undefined && id > 0 ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function absoluteAsset(baseUrl: string, value: unknown): string | undefined {
   const raw = text(value);
   if (!raw) return undefined;

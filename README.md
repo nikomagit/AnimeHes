@@ -31,12 +31,14 @@ Todos aceptan `skip` y traducen el desplazamiento a la página correspondiente d
 - Endpoints estándar `catalog`, `meta` y `stream` del protocolo Stremio.
 - Catálogos con póster, fondo, descripción, año, géneros, estado y episodios cuando la fuente los ofrece.
 - Búsqueda de streams mediante IDs IMDb, TMDB y Kitsu.
-- Matching tolerante con títulos originales, alternativos, japoneses e ingleses, con año como señal adicional.
+- Matching prioritario por IMDb/TMDB cuando el proveedor publica identidad externa; títulos, alias, año y tipo quedan como fallback conservador.
+- Cuevana permite localizar por TMDB numérico y confirma ese ID en sus reproductores; LaMovie verifica TMDB mediante `show_id` o sus embeds públicos.
+- Títulos originales, ingleses, españoles, localizados y alternativos se consultan cuando los metadatos los proporcionan.
 - Resolución de temporadas separadas: convierte una petición como `temporada 3, episodio 1` en la entrada independiente correcta del proveedor.
 - AnimeAV1: HLS y MP4Upload actualmente compatibles; funciona solo como proveedor de streams.
 - Hentaila: VIP/HLS, YourUpload y MP4Upload actualmente compatibles.
 - JKAnime: reproductores públicos UM/UMV que exponen HLS directo; funciona solo como proveedor de streams.
-- Cuevana: prioriza Trinity de forma exclusiva cuando sus playlists son válidas; si falla, sondea de manera aislada los reproductores alternativos públicos.
+- Cuevana: utiliza exclusivamente Trinity. Si Trinity no está disponible o su playlist no supera la validación, Cuevana no entrega un stream para ese contenido.
 - LaMovie: usa su API pública de búsqueda, temporadas, episodios y embeds; solo procesa reproductores HTTP y nunca sus campos de descarga.
 - Headers de reproducción en `behaviorHints.proxyHeaders` cuando el host los necesita.
 - Deduplicación por URL final y aislamiento de errores: una caída de un proveedor no bloquea a los demás.
@@ -91,7 +93,7 @@ Instala localmente:
 http://127.0.0.1:7100/manifest.json
 ```
 
-No necesitas `.env` ni claves privadas para IMDb, TMDB, Kitsu o los IDs internos. Los IDs TMDB se resuelven mediante un addon público de metadatos compatible con Stremio; si ese servicio externo está caído, esas solicitudes pueden fallar temporalmente sin afectar los demás tipos de ID.
+No necesitas `.env` ni claves privadas para IMDb, TMDB, Kitsu o los IDs internos. Cinemeta y el addon público TMDB permiten convertir IDs cuando publican `moviedb_id`/`imdb_id`. Opcionalmente, configura `TMDB_API_KEY` como secreto del servidor para añadir títulos localizados y alternativos directamente desde TMDB; la clave nunca debe entrar al repositorio.
 
 ## Configuración
 
@@ -110,6 +112,9 @@ Copia `.env.example` como `.env` solo si necesitas cambiar valores. `.env` está
 | `LAMOVIE_BASE_URL` | `https://lamovie.org` | API/origen público de LaMovie. |
 | `METADATA_BASE_URL` | `https://v3-cinemeta.strem.io` | Metadatos públicos para IMDb. |
 | `METADATA_FALLBACK_BASE_URL` | addon TMDB público | Metadatos públicos para IDs TMDB. |
+| `TMDB_API_KEY` | vacío | Clave opcional y privada para enriquecer aliases y convertir IDs si el servicio público falla. |
+| `TMDB_BASE_URL` | `https://api.themoviedb.org/3` | API oficial TMDB usada solo cuando existe una clave. |
+| `TMDB_LANGUAGE` | `es-ES` | Idioma localizado solicitado a TMDB. |
 | `REQUEST_TIMEOUT_MS` | `10000` | Timeout de proveedores y hosts. |
 | `CATALOG_CACHE_TTL_MS` | `900000` | Caché de catálogos (15 min). |
 | `SEARCH_CACHE_TTL_MS` | `60000` | Caché de búsqueda. |
@@ -149,7 +154,7 @@ Nuvio / Stremio
 - `src/providers/svelte/`: cliente compartido para los datos públicos SvelteKit.
 - `src/providers/animeav1/`, `src/providers/hentaila/` y `src/providers/jkanime/`: configuración aislada por proveedor.
 - `src/providers/cuevana/` y `src/providers/lamovie/`: clientes de películas y series, sin catálogos.
-- `src/providers/general/`: claves estructuradas de temporada/episodio y resolvers seguros de Trinity, Vimeos y fallbacks estáticos.
+- `src/providers/general/`: claves estructuradas de temporada/episodio y resolvers seguros de Trinity y Vimeos.
 - `src/providers/resolvers.ts`: resolvers directos compartidos y específicos.
 - `src/metadata/`: IDs externos e internos y consultores de metadatos.
 - `src/services/`: catálogos, fichas, matching y búsqueda multi-proveedor.
@@ -167,7 +172,7 @@ npm run build
 npm run validate:live
 ```
 
-Los tests cubren los tres catálogos públicos, manifest, IDs internos y externos sin secretos, búsqueda, temporadas separadas, episodios, prioridad/fallback de Trinity, clientes generales, validación de dominios, resolvers, deduplicación, aislamiento y endpoints HTTP. La prueba real reproducible está en `scripts/validate-live.ts`. Consulta [docs/RESEARCH.md](docs/RESEARCH.md) para las comprobaciones en vivo y decisiones técnicas.
+Los tests cubren los tres catálogos públicos, manifest, IDs internos y externos sin secretos, búsqueda, temporadas separadas, episodios, uso exclusivo de Trinity en Cuevana, clientes generales, validación de dominios, resolvers, deduplicación, aislamiento y endpoints HTTP. La prueba real reproducible está en `scripts/validate-live.ts`. Consulta [docs/RESEARCH.md](docs/RESEARCH.md) para las comprobaciones en vivo y decisiones técnicas.
 
 ## Referencias
 

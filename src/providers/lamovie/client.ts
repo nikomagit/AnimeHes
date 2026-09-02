@@ -19,6 +19,7 @@ import {
   parseMediaKey,
   record,
   text,
+  tmdbIdFromUrl,
   yearFrom,
 } from "../general/helpers.js";
 
@@ -36,6 +37,7 @@ export class LaMovieClient implements DirectMediaProvider {
   readonly baseUrl: string;
   readonly cdnBaseUrl: string;
   private readonly episodes = new Map<string, EpisodeReference>();
+  private readonly movieTmdbIds = new Map<string, number>();
 
   constructor(private readonly config: AppConfig, private readonly request: FetchText = fetchText) {
     this.baseUrl = config.laMovieBaseUrl;
@@ -56,6 +58,7 @@ export class LaMovieClient implements DirectMediaProvider {
       const title = text(item?.title);
       if (!mediaType || !slug || !title || (context && mediaType !== context.type)) return [];
       const synopsis = text(item?.overview);
+      const originalTitle = text(item?.original_title);
       const year = yearFrom(item?.release_date ?? title);
       return [{
         id: String(integer(item?._id) ?? slug),
@@ -63,6 +66,7 @@ export class LaMovieClient implements DirectMediaProvider {
         slug: mediaKey(mediaType, slug),
         mediaType,
         ...(synopsis ? { synopsis } : {}),
+        ...(originalTitle ? { aliases: [originalTitle] } : {}),
         ...(year === undefined ? {} : { year }),
       }];
     });
@@ -83,9 +87,21 @@ export class LaMovieClient implements DirectMediaProvider {
     const title = text(item?.title);
     if (!item || id === undefined || !title) return null;
     const originalTitle = text(item.original_title);
-    const episodes = parsed.type === "movie"
-      ? [{ number: 1, season: 1, relativeNumber: 1 }]
+    const seasonData = parsed.type === "movie"
+      ? { episodes: [{ number: 1, season: 1, relativeNumber: 1 }] }
       : await this.getSeasonEpisodes(key, id, context?.season ?? 1);
+    let tmdb = seasonData.tmdb;
+    if (parsed.type === "movie" && context?.externalIds?.tmdb !== undefined) {
+      tmdb = this.movieTmdbIds.get(key);
+      if (tmdb === undefined) {
+        try {
+          tmdb = this.tmdbIdFromEmbeds(await this.getPlayerEmbeds(id));
+          if (tmdb !== undefined) this.movieTmdbIds.set(key, tmdb);
+        } catch {
+          // External identity is an enhancement; title/year fallback remains available.
+        }
+      }
+    }
     const images = record(item.images);
     const synopsis = text(item.overview);
     const poster = absoluteAsset(this.baseUrl, images?.poster);
@@ -97,13 +113,14 @@ export class LaMovieClient implements DirectMediaProvider {
       slug: key,
       aka: originalTitle ? { original: originalTitle } : {},
       genres: [],
-      episodes,
+      episodes: seasonData.episodes,
       mediaType: parsed.type,
+      ...(tmdb === undefined ? {} : { externalIds: { tmdb } }),
       ...(synopsis ? { synopsis } : {}),
       ...(poster ? { poster } : {}),
       ...(backdrop ? { backdrop } : {}),
       ...(startDate ? { startDate } : {}),
-      episodesCount: episodes.length,
+      episodesCount: seasonData.episodes.length,
     };
   }
 
@@ -119,11 +136,7 @@ export class LaMovieClient implements DirectMediaProvider {
       postId = reference.id;
     }
     if (postId === undefined) return null;
-    const url = new URL("/wp-api/v1/player", `${this.baseUrl}/`);
-    url.search = new URLSearchParams({ postId: String(postId), demo: "0" }).toString();
-    const embeds = record((await this.json(url, "LaMovie player")).data)?.embeds;
-    if (!Array.isArray(embeds)) return null;
-    const normalized = embeds.flatMap((value) => {
+    const normalized = (await this.getPlayerEmbeds(postId)).flatMap((value) => {
       const item = record(value);
       const embedUrl = text(item?.url);
       if (!embedUrl?.startsWith("https://") && !embedUrl?.startsWith("http://")) return [];
@@ -133,6 +146,8 @@ export class LaMovieClient implements DirectMediaProvider {
       const quality = text(item?.quality);
       return [{ server, url: embedUrl, language, ...(quality ? { quality } : {}) }];
     });
+    const url = new URL("/wp-api/v1/player", `${this.baseUrl}/`);
+    url.search = new URLSearchParams({ postId: String(postId), demo: "0" }).toString();
     return { media, episodeNumber, embeds: normalized, pageUrl: url.toString() };
   }
 
@@ -140,18 +155,39 @@ export class LaMovieClient implements DirectMediaProvider {
     const url = new URL("/wp-api/v1/single/episodes/list", `${this.baseUrl}/`);
     url.search = new URLSearchParams({ _id: String(id), season: String(season), page: "1", postsPerPage: "100" }).toString();
     const posts = record((await this.json(url, "LaMovie episodes")).data)?.posts;
-    if (!Array.isArray(posts)) return [];
-    return posts.flatMap((value) => {
+    if (!Array.isArray(posts)) return { episodes: [] };
+    const tmdbIds = new Set<number>();
+    const episodes = posts.flatMap((value) => {
       const item = record(value);
       const episode = integer(item?.episode_number);
       const itemSeason = integer(item?.season_number);
       const episodeId = integer(item?._id);
       if (!episode || !itemSeason || !episodeId) return [];
+      const showId = integer(item?.show_id);
+      if (showId !== undefined && showId > 0) tmdbIds.add(showId);
       const number = episodeKey(itemSeason, episode);
       const title = text(item?.title);
       this.episodes.set(`${key}:${number}`, { id: episodeId, season: itemSeason, episode, ...(title ? { title } : {}) });
       return [{ number, season: itemSeason, relativeNumber: episode, ...(title ? { title } : {}) }];
     });
+    const tmdb = tmdbIds.size === 1 ? [...tmdbIds][0] : undefined;
+    return { episodes, ...(tmdb === undefined ? {} : { tmdb }) };
+  }
+
+  private async getPlayerEmbeds(postId: number): Promise<unknown[]> {
+    const url = new URL("/wp-api/v1/player", `${this.baseUrl}/`);
+    url.search = new URLSearchParams({ postId: String(postId), demo: "0" }).toString();
+    const embeds = record((await this.json(url, "LaMovie player")).data)?.embeds;
+    return Array.isArray(embeds) ? embeds : [];
+  }
+
+  private tmdbIdFromEmbeds(embeds: unknown[]): number | undefined {
+    for (const value of embeds) {
+      const url = text(record(value)?.url);
+      const tmdb = url ? tmdbIdFromUrl(url) : undefined;
+      if (tmdb !== undefined) return tmdb;
+    }
+    return undefined;
   }
 
   private async json(url: URL, upstream: string): Promise<Record<string, unknown>> {

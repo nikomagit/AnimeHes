@@ -1,6 +1,11 @@
 export type MediaType = "movie" | "series";
 export type MediaProvider = "imdb" | "kitsu" | "tmdb";
 
+export interface ExternalIds {
+  imdb?: string;
+  tmdb?: number;
+}
+
 export interface ParsedMediaId {
   provider: MediaProvider;
   baseId: string;
@@ -12,6 +17,7 @@ export interface MediaMetadata extends ParsedMediaId {
   type: MediaType;
   title: string;
   aliases: string[];
+  externalIds?: ExternalIds;
   year?: number;
   episodeTitle?: string;
   seasonTitle?: string;

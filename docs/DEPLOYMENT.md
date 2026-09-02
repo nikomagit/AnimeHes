@@ -23,7 +23,7 @@ El servicio de Render está conectado a la rama `main`; cada actualización inic
 1. Crea un repositorio de GitHub sin `.env`, `node_modules` ni `dist`.
 2. En Render selecciona **New > Blueprint** y conecta el repositorio.
 3. Render detectará `render.yaml` y construirá el `Dockerfile`.
-4. No agregues claves de TMDB: IMDb, TMDB, Kitsu y los IDs `animehes:` funcionan sin secretos privados.
+4. IMDb, TMDB, Kitsu y los IDs `animehes:` funcionan sin secretos privados. Si quieres aliases localizados adicionales, guarda `TMDB_API_KEY` como secreto del servicio, nunca en Git.
 5. Espera a que `/health` responda `{"status":"ok",...}`.
 6. Instala `https://TU-SERVICIO.onrender.com/manifest.json` en Nuvio/Stremio.
 
@@ -70,7 +70,7 @@ https://addon.tu-dominio.example/manifest.json
 | `METADATA_FALLBACK_BASE_URL` | `https://94c8cb9f702d-tmdb-addon.baby-beamup.club` |
 | `CATALOG_CACHE_TTL_MS` | `900000` |
 
-AnimeHes no necesita claves de TMDB. `METADATA_FALLBACK_BASE_URL` apunta a un servicio público y puede sustituirse por otra instancia compatible sin credenciales.
+AnimeHes no necesita claves de TMDB. `METADATA_FALLBACK_BASE_URL` apunta a un servicio público y puede sustituirse por otra instancia compatible sin credenciales. `TMDB_API_KEY` es opcional: mejora títulos alternativos/localizados y sirve como fallback de conversión IMDb↔TMDB; en Render debe configurarse como variable secreta.
 
 ## Verificación posterior
 

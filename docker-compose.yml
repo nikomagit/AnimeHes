@@ -13,3 +13,5 @@ services:
       ANIMEAV1_CDN_BASE_URL: https://cdn.animeav1.com
       JKANIME_BASE_URL: https://jkanime.net
       METADATA_FALLBACK_BASE_URL: https://94c8cb9f702d-tmdb-addon.baby-beamup.club
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      TMDB_LANGUAGE: ${TMDB_LANGUAGE:-es-ES}

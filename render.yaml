@@ -25,3 +25,7 @@ services:
         value: https://lamovie.org
       - key: METADATA_FALLBACK_BASE_URL
         value: https://94c8cb9f702d-tmdb-addon.baby-beamup.club
+      - key: TMDB_LANGUAGE
+        value: es-ES
+      - key: TMDB_API_KEY
+        sync: false

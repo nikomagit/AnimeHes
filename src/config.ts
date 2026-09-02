@@ -11,6 +11,9 @@ export interface AppConfig {
   laMovieBaseUrl: string;
   metadataBaseUrl: string;
   metadataFallbackBaseUrl: string;
+  tmdbBaseUrl: string;
+  tmdbApiKey?: string;
+  tmdbLanguage: string;
   requestTimeoutMs: number;
   metadataTimeoutMs: number;
   maxResponseBytes: number;
@@ -25,6 +28,13 @@ export interface AppConfig {
   cacheMaxEntries: number;
   userAgent: string;
   playbackUserAgent: string;
+}
+
+function optionalSecret(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const value = env[name]?.trim();
+  if (!value) return undefined;
+  if (/[\r\n]/.test(value)) throw new Error(`${name} contains invalid characters`);
+  return value;
 }
 
 function integer(
@@ -76,6 +86,11 @@ function baseUrl(env: NodeJS.ProcessEnv, name: string, fallback: string): string
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const port = integer(env, "PORT", 7100, 1, 65_535);
+  const tmdbApiKey = optionalSecret(env, "TMDB_API_KEY");
+  const tmdbLanguage = env.TMDB_LANGUAGE?.trim() || "es-ES";
+  if (!/^[a-z]{2}(?:-[A-Z]{2})?$/.test(tmdbLanguage)) {
+    throw new Error("TMDB_LANGUAGE must look like es or es-ES");
+  }
 
   return {
     host: env.HOST?.trim() || "0.0.0.0",
@@ -94,6 +109,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       "METADATA_FALLBACK_BASE_URL",
       "https://94c8cb9f702d-tmdb-addon.baby-beamup.club",
     ),
+    tmdbBaseUrl: baseUrl(env, "TMDB_BASE_URL", "https://api.themoviedb.org/3"),
+    ...(tmdbApiKey ? { tmdbApiKey } : {}),
+    tmdbLanguage,
     requestTimeoutMs: integer(env, "REQUEST_TIMEOUT_MS", 10_000, 1_000, 60_000),
     metadataTimeoutMs: integer(env, "METADATA_TIMEOUT_MS", 6_000, 1_000, 60_000),
     maxResponseBytes: integer(

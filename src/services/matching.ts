@@ -1,9 +1,10 @@
-import type { MediaMetadata } from "../types.js";
+import type { ExternalIds, MediaMetadata } from "../types.js";
 import type { ProviderMedia, ProviderSearchResult } from "../providers/types.js";
 
 const GENERIC_SUFFIX = /\b(?:the\s+animation|animation|animated|ova)\b/gu;
 const FIRST_INSTALLMENT_SUFFIX = /\s+(?:part|parte|chapter|capitulo)\s+(?:one|uno|1)$/u;
 const HUMAN_FIRST_INSTALLMENT_SUFFIX = /[\s:–—-]+(?:part|parte|chapter|cap[ií]tulo)\s+(?:one|uno|1)\s*$/iu;
+const LEADING_ARTICLE = /^(?:the|a|an|el|la|los|las|un|una|unos|unas)\s+/iu;
 const EXTRA_CATEGORY = /\b(?:movie|pelicula|film|ova|special|especial)\b/u;
 const ORDINAL_SEASONS = new Map<string, number>([
   ["first", 1], ["second", 2], ["third", 3], ["fourth", 4], ["fifth", 5],
@@ -86,6 +87,22 @@ export function candidateAliases(media: ProviderMedia): string[] {
   return [...new Set([media.title, ...Object.values(media.aka)].map((item) => item.trim()).filter(Boolean))];
 }
 
+export type ExternalIdMatch = "exact" | "conflict" | "unknown";
+
+export function externalIdMatch(wanted: ExternalIds | undefined, available: ExternalIds | undefined): ExternalIdMatch {
+  if (!wanted || !available) return "unknown";
+  let exact = false;
+  if (wanted.imdb && available.imdb) {
+    if (wanted.imdb !== available.imdb) return "conflict";
+    exact = true;
+  }
+  if (wanted.tmdb !== undefined && available.tmdb !== undefined) {
+    if (wanted.tmdb !== available.tmdb) return "conflict";
+    exact = true;
+  }
+  return exact ? "exact" : "unknown";
+}
+
 function bestAliasScore(wanted: string[], available: string[]): number {
   let best = 0;
   for (const left of wanted) for (const right of available) best = Math.max(best, titleSimilarity(left, right));
@@ -137,7 +154,9 @@ export function isSeasonCompatible(metadata: MediaMetadata, media: ProviderMedia
 
   const marker = inferSeasonNumber(media.title, ...Object.values(media.aka), media.slug);
   if (marker !== undefined) return marker === season;
-  if (season <= 1) return exactBaseTitle(metadata, media);
+  if (season <= 1) {
+    return externalIdMatch(metadata.externalIds, media.externalIds) === "exact" || exactBaseTitle(metadata, media);
+  }
 
   const candidateYear = yearFrom(media.startDate);
   if (metadata.seasonYear === undefined || candidateYear !== metadata.seasonYear) return false;
@@ -155,7 +174,10 @@ function yearFrom(date: string | undefined): number | undefined {
 }
 
 export function preliminaryScore(metadata: MediaMetadata, result: ProviderSearchResult): number {
-  let score = bestAliasScore(mediaAliases(metadata), [result.title]);
+  const identity = externalIdMatch(metadata.externalIds, result.externalIds);
+  if (identity === "exact") return 1;
+  if (identity === "conflict") return 0;
+  let score = bestAliasScore(mediaAliases(metadata), [result.title, ...(result.aliases ?? [])]);
   const season = requestedSeason(metadata);
   if (season !== undefined && season > 1) {
     const marker = inferSeasonNumber(result.title, result.slug);
@@ -167,6 +189,9 @@ export function preliminaryScore(metadata: MediaMetadata, result: ProviderSearch
 }
 
 export function detailedScore(metadata: MediaMetadata, media: ProviderMedia): number {
+  const identity = externalIdMatch(metadata.externalIds, media.externalIds);
+  if (identity === "exact") return 1;
+  if (identity === "conflict") return 0;
   let score = bestAliasScore(mediaAliases(metadata), candidateAliases(media));
   const candidateYear = yearFrom(media.startDate);
   if (metadata.year !== undefined && candidateYear !== undefined) {
@@ -205,9 +230,13 @@ function ordinal(value: number): string {
 export function buildSearchQueries(metadata: MediaMetadata, maximum: number): string[] {
   const base = mediaAliases(metadata).flatMap((title) => {
     const withoutFirstInstallment = title.replace(HUMAN_FIRST_INSTALLMENT_SUFFIX, "").trim();
-    return withoutFirstInstallment && withoutFirstInstallment !== title
+    const titles = withoutFirstInstallment && withoutFirstInstallment !== title
       ? [title, withoutFirstInstallment]
       : [title];
+    return titles.flatMap((candidate) => {
+      const withoutArticle = candidate.replace(LEADING_ARTICLE, "").trim();
+      return withoutArticle && withoutArticle !== candidate ? [candidate, withoutArticle] : [candidate];
+    });
   });
   const season = requestedSeason(metadata);
   const candidates = season && season > 1

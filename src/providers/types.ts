@@ -1,4 +1,4 @@
-import type { MediaMetadata, MediaType } from "../types.js";
+import type { ExternalIds, MediaMetadata, MediaType } from "../types.js";
 
 export type ProviderId =
   | "animeav1"
@@ -10,7 +10,7 @@ export type ProviderCatalogKind = "popular" | "airing" | "uncensored";
 export type ProviderScope = "anime" | "general";
 export type ProviderRequestContext = Pick<
   MediaMetadata,
-  "type" | "title" | "aliases" | "year" | "season" | "episode"
+  "type" | "title" | "aliases" | "externalIds" | "year" | "season" | "episode"
 >;
 
 export interface ProviderCategory {
@@ -33,6 +33,8 @@ export interface ProviderSearchResult {
   category?: ProviderCategory;
   mediaType?: MediaType;
   year?: number;
+  aliases?: string[];
+  externalIds?: ExternalIds;
 }
 
 export interface ProviderEpisodeSummary {
@@ -64,6 +66,7 @@ export interface ProviderMedia {
   genres: ProviderGenre[];
   episodes: ProviderEpisodeSummary[];
   mediaType?: MediaType;
+  externalIds?: ExternalIds;
 }
 
 export interface ProviderSubtitle {
@@ -105,6 +108,7 @@ export interface DirectMediaProvider {
   readonly baseUrl: string;
   readonly cdnBaseUrl: string;
   search(query: string, context?: ProviderRequestContext): Promise<ProviderSearchResult[]>;
+  searchByExternalIds?(context: ProviderRequestContext): Promise<ProviderSearchResult[]>;
   getCatalog(kind: ProviderCatalogKind, page: number): Promise<ProviderCatalogPage>;
   getMedia(slug: string, context?: ProviderRequestContext): Promise<ProviderMedia | null>;
   getEpisode(slug: string, episode: number, context?: ProviderRequestContext): Promise<ProviderEpisodePage | null>;

@@ -17,6 +17,7 @@ import {
   parseMediaKey,
   plainText,
   safeUrl,
+  tmdbIdFromUrl,
   yearFrom,
 } from "../general/helpers.js";
 
@@ -27,6 +28,7 @@ export class CuevanaClient implements DirectMediaProvider {
   readonly baseUrl: string;
   readonly cdnBaseUrl: string;
   private readonly episodeUrls = new Map<string, string>();
+  private readonly externalTmdbIds = new Map<string, number>();
 
   constructor(private readonly config: AppConfig, private readonly request: FetchText = fetchText) {
     this.baseUrl = config.cuevanaBaseUrl;
@@ -61,6 +63,15 @@ export class CuevanaClient implements DirectMediaProvider {
     return results;
   }
 
+  async searchByExternalIds(context: ProviderRequestContext): Promise<ProviderSearchResult[]> {
+    const tmdb = context.externalIds?.tmdb;
+    if (tmdb === undefined) return [];
+    const results = await this.search(String(tmdb), context);
+    return results.length === 1
+      ? results.map((result) => ({ ...result, externalIds: { tmdb } }))
+      : results;
+  }
+
   async getCatalog(_kind: ProviderCatalogKind, _page: number): Promise<ProviderCatalogPage> {
     return emptyCatalog();
   }
@@ -80,6 +91,23 @@ export class CuevanaClient implements DirectMediaProvider {
       ? [{ number: 1, season: 1, relativeNumber: 1 }]
       : await this.getSeasonEpisodes(key, parsed.slug, context?.season ?? 1);
     const startYear = yearFrom(html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]);
+    let tmdb = this.externalTmdbIds.get(key);
+    if (tmdb === undefined && parsed.type === "movie") tmdb = this.tmdbIdFromPage(html);
+    if (tmdb === undefined && parsed.type === "series" && context?.externalIds?.tmdb !== undefined) {
+      const wantedNumber = episodeKey(context.season ?? 1, context.episode ?? 1);
+      const identityNumber = episodes.some((item) => item.number === wantedNumber)
+        ? wantedNumber
+        : episodes[0]?.number;
+      const identityUrl = identityNumber === undefined ? undefined : this.episodeUrls.get(`${key}:${identityNumber}`);
+      if (identityUrl) {
+        try {
+          tmdb = this.tmdbIdFromPage(await this.html(identityUrl, "Cuevana identity"));
+        } catch {
+          // The exact-ID search result remains usable if an identity player is temporarily unavailable.
+        }
+      }
+    }
+    if (tmdb !== undefined) this.externalTmdbIds.set(key, tmdb);
     return {
       title,
       slug: key,
@@ -88,6 +116,7 @@ export class CuevanaClient implements DirectMediaProvider {
       episodes,
       mediaType: parsed.type,
       episodesCount: episodes.length,
+      ...(tmdb === undefined ? {} : { externalIds: { tmdb } }),
       ...(startYear === undefined ? {} : { startDate: `${startYear}-01-01` }),
     };
   }
@@ -107,19 +136,10 @@ export class CuevanaClient implements DirectMediaProvider {
     if (!pageUrl) return null;
     const html = await this.html(pageUrl, "Cuevana player");
     const embeds = [...html.matchAll(/<li\b[^>]*data-server=["']([^"']+)["'][^>]*>\s*<span>([\s\S]*?)<\/span>/gi)].flatMap((match) => {
-      const wrapper = safeUrl(match[1] ?? "", this.baseUrl);
-      if (!wrapper) return [];
-      const encoded = new URL(wrapper).searchParams.get("v");
-      if (!encoded) return [];
-      let decoded: string;
-      try {
-        decoded = Buffer.from(encoded, "base64").toString("utf8");
-      } catch {
-        return [];
-      }
-      const url = safeUrl(decoded, this.baseUrl);
+      const url = this.decodedServerUrl(match[1] ?? "");
       if (!url) return [];
       const server = plainText(match[2] ?? "").replace(/^Servidor\s+/iu, "").trim();
+      if (!this.isTrinityPlayer(server, url)) return [];
       const before = html.slice(Math.max(0, (match.index ?? 0) - 1800), match.index ?? 0);
       const languageMatches = [...before.matchAll(/class=["']tab-item-name["'][^>]*>([\s\S]*?)(?:<div|<\/div>)/gi)];
       const language = plainText(languageMatches.at(-1)?.[1] ?? "");
@@ -127,6 +147,37 @@ export class CuevanaClient implements DirectMediaProvider {
       return [{ server: server || new URL(url).hostname, url, language, ...(quality ? { quality } : {}) }];
     });
     return { media, episodeNumber, embeds, pageUrl };
+  }
+
+  private isTrinityPlayer(server: string, rawUrl: string): boolean {
+    try {
+      const host = new URL(rawUrl).hostname.toLocaleLowerCase("en");
+      return server.toLocaleLowerCase("en") === "trinity"
+        && (host === "videasy.net" || host.endsWith(".videasy.net") || host === "videasy.to" || host.endsWith(".videasy.to"));
+    } catch {
+      return false;
+    }
+  }
+
+  private decodedServerUrl(wrapperValue: string): string | null {
+    const wrapper = safeUrl(wrapperValue, this.baseUrl);
+    if (!wrapper) return null;
+    const encoded = new URL(wrapper).searchParams.get("v");
+    if (!encoded) return null;
+    try {
+      return safeUrl(Buffer.from(encoded, "base64").toString("utf8"), this.baseUrl);
+    } catch {
+      return null;
+    }
+  }
+
+  private tmdbIdFromPage(html: string): number | undefined {
+    for (const match of html.matchAll(/data-server=["']([^"']+)["']/gi)) {
+      const decoded = this.decodedServerUrl(match[1] ?? "");
+      const tmdb = decoded ? tmdbIdFromUrl(decoded) : undefined;
+      if (tmdb !== undefined) return tmdb;
+    }
+    return undefined;
   }
 
   private async getSeasonEpisodes(key: string, slug: string, season: number) {

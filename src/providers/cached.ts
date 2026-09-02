@@ -13,7 +13,14 @@ import type {
 
 function contextKey(context?: ProviderRequestContext): string {
   if (!context) return "";
-  return [context.type, context.year ?? "", context.season ?? "", context.episode ?? ""].join(":");
+  return [
+    context.type,
+    context.externalIds?.imdb ?? "",
+    context.externalIds?.tmdb ?? "",
+    context.year ?? "",
+    context.season ?? "",
+    context.episode ?? "",
+  ].join(":");
 }
 
 /** Adds the same bounded, coalescing caches used by the existing anime clients. */
@@ -41,6 +48,12 @@ export class CachedDirectMediaProvider implements DirectMediaProvider {
     if (!cleaned) return Promise.resolve([]);
     const key = `${contextKey(context)}|${cleaned.toLocaleLowerCase("es")}`;
     return this.searchCache.getOrCreate(key, () => this.inner.search(cleaned, context));
+  }
+
+  searchByExternalIds(context: ProviderRequestContext): Promise<ProviderSearchResult[]> {
+    if (!this.inner.searchByExternalIds) return Promise.resolve([]);
+    const key = `external|${contextKey(context)}`;
+    return this.searchCache.getOrCreate(key, () => this.inner.searchByExternalIds!(context));
   }
 
   getCatalog(kind: ProviderCatalogKind, page: number): Promise<ProviderCatalogPage> {

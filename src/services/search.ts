@@ -8,6 +8,7 @@ import type { AddonStream, MediaMetadata, StreamSearchService } from "../types.j
 import {
   buildSearchQueries,
   detailedScore,
+  externalIdMatch,
   isSeasonCompatible,
   normalizeTitle,
   preliminaryScore,
@@ -135,16 +136,34 @@ export class ProviderSearchService implements StreamSearchService {
 
   private async findBestMatch(provider: DirectMediaProvider, metadata: MediaMetadata): Promise<ProviderMedia | null> {
     const queries = buildSearchQueries(metadata, this.config.maxSearchQueries);
-    const searches = await Promise.allSettled(queries.map((query) => provider.search(query, metadata)));
+    const searchRequests = queries.map((query) => provider.search(query, metadata));
+    if (provider.searchByExternalIds && metadata.externalIds) {
+      searchRequests.unshift(provider.searchByExternalIds(metadata));
+    }
+    const searches = await Promise.allSettled(searchRequests);
     const candidates = new Map<string, Candidate>();
     for (const search of searches) {
       if (search.status !== "fulfilled") continue;
       for (const result of search.value) {
         if (result.mediaType && result.mediaType !== metadata.type) continue;
-        if (metadata.year !== undefined && result.year !== undefined && Math.abs(metadata.year - result.year) > 1) continue;
+        const identity = externalIdMatch(metadata.externalIds, result.externalIds);
+        if (identity === "conflict") continue;
+        if (identity !== "exact" && metadata.year !== undefined && result.year !== undefined && Math.abs(metadata.year - result.year) > 1) continue;
         const score = preliminaryScore(metadata, result);
         const existing = candidates.get(result.slug);
-        if (!existing || score > existing.preliminary) candidates.set(result.slug, { result, preliminary: score });
+        if (!existing) {
+          candidates.set(result.slug, { result, preliminary: score });
+          continue;
+        }
+        const aliases = [...new Set([...(existing.result.aliases ?? []), ...(result.aliases ?? [])])];
+        const externalIds = { ...existing.result.externalIds, ...result.externalIds };
+        const merged: ProviderSearchResult = {
+          ...(score > existing.preliminary ? existing.result : result),
+          ...(score > existing.preliminary ? result : existing.result),
+          ...(aliases.length ? { aliases } : {}),
+          ...(Object.keys(externalIds).length ? { externalIds } : {}),
+        };
+        candidates.set(result.slug, { result: merged, preliminary: Math.max(existing.preliminary, score) });
       }
     }
     const seasonalRequest = metadata.provider !== "kitsu" && (metadata.season ?? 1) > 1;
@@ -154,16 +173,35 @@ export class ProviderSearchService implements StreamSearchService {
     const shortlist = [...candidates.values()]
       .sort((left, right) => right.preliminary - left.preliminary)
       .slice(0, candidateLimit);
-    const details = await Promise.allSettled(shortlist.map(async (candidate) => ({ media: await provider.getMedia(candidate.result.slug, metadata) })));
-    let best: { media: ProviderMedia; score: number } | undefined;
+    const details = await Promise.allSettled(shortlist.map(async (candidate) => ({
+      candidate: candidate.result,
+      media: await provider.getMedia(candidate.result.slug, metadata),
+    })));
+    let best: { media: ProviderMedia; score: number; exact: boolean } | undefined;
     for (const detail of details) {
       if (detail.status !== "fulfilled" || !detail.value.media) continue;
-      if (detail.value.media.mediaType && detail.value.media.mediaType !== metadata.type) continue;
-      if (!isSeasonCompatible(metadata, detail.value.media)) continue;
-      const score = detailedScore(metadata, detail.value.media);
-      if (!best || score > best.score) best = { media: detail.value.media, score };
+      const { candidate, media } = detail.value;
+      if (media.mediaType && media.mediaType !== metadata.type) continue;
+      const resultIdentity = externalIdMatch(metadata.externalIds, candidate.externalIds);
+      const mediaIdentity = externalIdMatch(metadata.externalIds, media.externalIds);
+      if (resultIdentity === "conflict" || mediaIdentity === "conflict") continue;
+      const aliases = candidate.aliases ?? [];
+      const enriched: ProviderMedia = {
+        ...media,
+        aka: {
+          ...media.aka,
+          ...Object.fromEntries(aliases.map((alias, index) => [`search-${index + 1}`, alias])),
+        },
+        externalIds: { ...candidate.externalIds, ...media.externalIds },
+      };
+      if (!isSeasonCompatible(metadata, enriched)) continue;
+      const exact = resultIdentity === "exact" || mediaIdentity === "exact";
+      const score = exact ? 1 : detailedScore(metadata, enriched);
+      if (!best || exact && !best.exact || exact === best.exact && score > best.score) {
+        best = { media: enriched, score, exact };
+      }
     }
-    return best && best.score >= this.config.minMatchScore ? best.media : null;
+    return best && (best.exact || best.score >= this.config.minMatchScore) ? best.media : null;
   }
 }
 

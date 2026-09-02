@@ -91,4 +91,26 @@ describe("end-to-end search orchestration", () => {
     await expect(service.getStreams("movie", "tt1234567")).resolves.toEqual([]);
     expect(provider.getEpisode).not.toHaveBeenCalled();
   });
+
+  it("rejects an exact-looking title when the provider publishes a different TMDB ID", async () => {
+    const metadata: MetadataProvider = {
+      resolve: vi.fn().mockResolvedValue({
+        provider: "imdb", baseId: "tt0133093", type: "movie", title: "The Matrix",
+        aliases: ["Matrix"], externalIds: { imdb: "tt0133093", tmdb: 603 }, year: 1999,
+      }),
+    };
+    const provider: HentailaProvider = {
+      id: "hentaila", name: "Hentaila", baseUrl: "https://hentaila.com", cdnBaseUrl: "https://cdn.hentaila.com",
+      search: vi.fn().mockResolvedValue([{
+        id: "wrong", title: "The Matrix", slug: "the-matrix", externalIds: { tmdb: 624860 },
+      }]),
+      getCatalog: vi.fn(),
+      getMedia: vi.fn(),
+      getEpisode: vi.fn(),
+    };
+    const service = new HentailaSearchService(testConfig(), metadata, provider, { resolveAll: vi.fn() });
+    await expect(service.getStreams("movie", "tt0133093")).resolves.toEqual([]);
+    expect(provider.getMedia).not.toHaveBeenCalled();
+    expect(provider.getEpisode).not.toHaveBeenCalled();
+  });
 });

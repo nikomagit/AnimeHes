@@ -58,13 +58,7 @@ export class DirectStreamResolverRegistry implements DirectStreamResolver {
   }
 
   async resolveAll(embeds: ProviderEmbed[], episodePageUrl: string): Promise<ResolvedDirectStream[]> {
-    const trinity = embeds.filter((embed) => embed.server.toLocaleLowerCase("en") === "trinity");
-    if (trinity.length > 0) {
-      const preferred = await this.resolveEmbeds(trinity, episodePageUrl);
-      if (preferred.length > 0) return preferred.slice(0, this.config.maxStreams);
-    }
-    return (await this.resolveEmbeds(embeds.filter((embed) => !trinity.includes(embed)), episodePageUrl))
-      .slice(0, this.config.maxStreams);
+    return (await this.resolveEmbeds(embeds, episodePageUrl)).slice(0, this.config.maxStreams);
   }
 
   private async resolveEmbeds(embeds: ProviderEmbed[], episodePageUrl: string): Promise<ResolvedDirectStream[]> {

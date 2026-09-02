@@ -1,4 +1,5 @@
 import { loadConfig } from "../src/config.js";
+import { RemoteMetadataProvider, type MetadataProvider } from "../src/metadata/client.js";
 import { CuevanaClient } from "../src/providers/cuevana/client.js";
 import { AnimeAv1Client } from "../src/providers/animeav1/client.js";
 import { HentailaClient } from "../src/providers/hentaila/client.js";
@@ -13,7 +14,9 @@ interface CheckTarget {
   label: string;
   type: MediaType;
   id: string;
-  metadata: MediaMetadata;
+  metadata?: MediaMetadata;
+  providers?: string[];
+  remoteMetadata?: boolean;
 }
 
 interface Validation {
@@ -22,6 +25,7 @@ interface Validation {
   streams: number;
   checked: number;
   valid: number;
+  matchedTitles: string[];
   results: Array<{ server: string; type: string; status: number; contentType: string; finalHost: string; playlist: boolean }>;
   error?: string;
 }
@@ -56,6 +60,18 @@ const targets: CheckTarget[] = [
     label: "Breaking Bad S3E5", type: "series", id: "tt0903747:3:5",
     metadata: { provider: "imdb", baseId: "tt0903747", type: "series", title: "Breaking Bad", aliases: [], year: 2008, season: 3, episode: 5 },
   },
+  {
+    label: "How I Met Your Mother → Cómo conocí a vuestra madre S1E1",
+    type: "series", id: "tt0460649:1:1", providers: ["cuevana"], remoteMetadata: true,
+  },
+  {
+    label: "Money Heist → La Casa de Papel S1E1",
+    type: "series", id: "tt6468322:1:1", providers: ["cuevana"], remoteMetadata: true,
+  },
+  {
+    label: "The Matrix → Matrix (1999)",
+    type: "movie", id: "tt0133093", providers: ["lamovie"], remoteMetadata: true,
+  },
 ];
 
 function serverName(stream: AddonStream): string {
@@ -86,8 +102,11 @@ async function validateStream(stream: AddonStream) {
 
 const validations: Validation[] = [];
 for (const target of targets) {
-  for (const provider of providers) {
-    const service = new ProviderSearchService(config, { resolve: async () => target.metadata }, [{ provider, resolvers: resolver }]);
+  for (const provider of providers.filter((item) => !target.providers || target.providers.includes(item.id))) {
+    const metadataProvider: MetadataProvider = target.remoteMetadata
+      ? new RemoteMetadataProvider(config)
+      : { resolve: async () => target.metadata! };
+    const service = new ProviderSearchService(config, metadataProvider, [{ provider, resolvers: resolver }]);
     try {
       const streams = await service.getStreams(target.type, target.id);
       const results = [];
@@ -102,10 +121,11 @@ for (const target of targets) {
         streams: streams.length,
         checked: results.length,
         valid: results.filter((item) => item.status >= 200 && item.status < 400 && (item.type !== "hls" || item.playlist)).length,
+        matchedTitles: streams.map((stream) => stream.title.split("\n")[0] ?? stream.title),
         results,
       });
     } catch (error) {
-      validations.push({ provider: provider.name, target: target.label, streams: 0, checked: 0, valid: 0, results: [], error: error instanceof Error ? error.message : "unknown error" });
+      validations.push({ provider: provider.name, target: target.label, streams: 0, checked: 0, valid: 0, matchedTitles: [], results: [], error: error instanceof Error ? error.message : "unknown error" });
     }
   }
 }
@@ -134,10 +154,11 @@ for (const check of [
     validations.push({
       provider: check.provider.name, target: check.label, streams: streams.length, checked: results.length,
       valid: results.filter((item) => item.status >= 200 && item.status < 400 && (item.type !== "hls" || item.playlist)).length,
+      matchedTitles: [check.label],
       results,
     });
   } catch (error) {
-    validations.push({ provider: check.provider.name, target: check.label, streams: 0, checked: 0, valid: 0, results: [], error: error instanceof Error ? error.message : "unknown error" });
+    validations.push({ provider: check.provider.name, target: check.label, streams: 0, checked: 0, valid: 0, matchedTitles: [], results: [], error: error instanceof Error ? error.message : "unknown error" });
   }
 }
 

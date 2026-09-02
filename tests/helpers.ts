@@ -14,6 +14,8 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     laMovieBaseUrl: "https://lamovie.org",
     metadataBaseUrl: "https://v3-cinemeta.strem.io",
     metadataFallbackBaseUrl: "https://metadata.example",
+    tmdbBaseUrl: "https://api.themoviedb.org/3",
+    tmdbLanguage: "es-ES",
     requestTimeoutMs: 2_000,
     metadataTimeoutMs: 2_000,
     maxResponseBytes: 1024 * 1024,

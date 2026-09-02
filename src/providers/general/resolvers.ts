@@ -15,9 +15,6 @@ function directHeaders(embedUrl: URL, userAgent: string): Record<string, string>
   return { Accept: "*/*", Origin: embedUrl.origin, Referer: embedUrl.toString(), "User-Agent": userAgent };
 }
 
-const CUEVANA_FALLBACK_HOSTS = ["vsembed.ru", "vidlink.pro", "vidapi.xyz"];
-const KNOWN_MEDIA_HOSTS = ["peakstorm.top", "vimeos.zip", "vimeos.net"];
-
 export class GeneralStreamResolver {
   constructor(private readonly config: AppConfig, private readonly request: FetchText = fetchText) {}
 
@@ -26,8 +23,7 @@ export class GeneralStreamResolver {
     const host = this.host(embed.url);
     return server === "trinity" || server === "vimeos"
       || host.endsWith("videasy.net") || host.endsWith("videasy.to")
-      || host.endsWith("vimeos.net")
-      || CUEVANA_FALLBACK_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+      || host.endsWith("vimeos.net");
   }
 
   async resolve(embed: ProviderEmbed, episodePageUrl: string): Promise<ResolvedDirectStream[]> {
@@ -37,9 +33,6 @@ export class GeneralStreamResolver {
     if (server === "vimeos" || host.endsWith("vimeos.net")) {
       const stream = await this.resolveVimeos(embed, episodePageUrl);
       return stream ? [stream] : [];
-    }
-    if (CUEVANA_FALLBACK_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`))) {
-      return this.resolveStaticFallback(embed, episodePageUrl);
     }
     return [];
   }
@@ -69,28 +62,6 @@ export class GeneralStreamResolver {
       server: embed.server, language: embed.language, url, type: "hls", label: "HLS",
       headers: directHeaders(source, this.config.playbackUserAgent), ...this.details(embed),
     };
-  }
-
-  private async resolveStaticFallback(embed: ProviderEmbed, episodePageUrl: string): Promise<ResolvedDirectStream[]> {
-    const source = new URL(embed.url);
-    const body = cleanUrl(await this.request(source, this.pageOptions(`${embed.server} fallback`, episodePageUrl)));
-    const candidates = [...body.matchAll(/https?:\/\/[^\s"'<>\\]+?\.(?:m3u8|mp4)(?:\?[^\s"'<>\\]*)?/gi)];
-    const streams = new Map<string, ResolvedDirectStream>();
-    for (const match of candidates) {
-      const url = this.validMediaUrl(match[0], KNOWN_MEDIA_HOSTS);
-      if (!url || streams.has(url)) continue;
-      const type = /\.m3u8(?:\?|$)/i.test(url) ? "hls" : "mp4";
-      streams.set(url, {
-        server: embed.server,
-        language: embed.language,
-        url,
-        type,
-        label: type === "hls" ? "HLS" : "MP4",
-        headers: directHeaders(source, this.config.playbackUserAgent),
-        ...this.details(embed),
-      });
-    }
-    return [...streams.values()];
   }
 
   private unpackPacker(body: string): string | null {
