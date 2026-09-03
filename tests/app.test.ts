@@ -21,7 +21,7 @@ describe("HTTP addon interface", () => {
     const body = response.json();
     expect(body).toMatchObject({
       id: "org.nuvio.amokin",
-      version: "2.1.0",
+      version: "2.1.1",
       name: "AMOKIN",
       description: "Streams HTTP/HTTPS directos de AnimeAv1, JKanime y Hentaila, sin P2P ni adicionales. No esta vinculado a ninguna de las 3 plataformas mencionadas.",
       logo: "https://amokin.onrender.com/logo.jpg",
@@ -44,7 +44,7 @@ describe("HTTP addon interface", () => {
     const health = await app.inject({ method: "GET", url: "/health" });
     expect(health.statusCode).toBe(200);
     expect(health.json()).toMatchObject({
-      version: "2.1.0",
+      version: "2.1.1",
       p2p: false,
       sources: ["AnimeAV1", "Hentaila", "JKAnime"],
     });

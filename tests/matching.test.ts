@@ -132,6 +132,25 @@ describe("conservative title matching", () => {
     expect(inferSeasonNumber("Temporada 4")).toBe(4);
   });
 
+  it("accepts an exact OVA title for season one but not as a later season", () => {
+    const candidate = {
+      title: "Kanojo X Kanojo X Kanojo",
+      slug: "kanojo-x-kanojo-x-kanojo",
+      aka: { "en-us": "Kanojo x Kanojo x Kanojo" },
+      startDate: "2009-12-25",
+      category: { name: "OVA", slug: "ova" },
+      genres: [],
+      episodes: [{ number: 1 }, { number: 2 }, { number: 3 }],
+    };
+    const metadata: MediaMetadata = {
+      provider: "tmdb", baseId: "76975", type: "series",
+      title: "Kanojo x Kanojo x Kanojo", aliases: [],
+      externalIds: { tmdb: 76975 }, year: 2009, season: 1, episode: 1,
+    };
+    expect(isSeasonCompatible(metadata, candidate)).toBe(true);
+    expect(isSeasonCompatible({ ...metadata, season: 2 }, candidate)).toBe(false);
+  });
+
   it("rejects the base entry and accepts the split entry for a later season", () => {
     const seasonThree: MediaMetadata = {
       provider: "imdb",

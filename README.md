@@ -14,7 +14,7 @@ Agrega este manifest en Nuvio o Stremio:
 https://amokin.onrender.com/manifest.json
 ```
 
-Esta versión 2.1.0 permanece sin publicar hasta completar la revisión. El servicio público seguirá mostrando la última versión desplegada mientras tanto.
+La versión pública actual se despliega automáticamente desde la rama `main` en Render.
 
 ## Funciones
 
@@ -52,11 +52,11 @@ IMDb, TMDB y TVDB usan `temporada:episodio`. Kitsu, AniList, MAL y AniDB aceptan
 ## Estrategia de metadatos
 
 1. Se detecta el prefijo del ID.
-2. IMDb se consulta en Cinemeta; TMDB, en el addon público TMDB compatible con Stremio; Kitsu, en su API pública; AniList y MAL, en AniList GraphQL.
+2. IMDb se consulta en Cinemeta. Si existe `TMDB_API_KEY`, los IDs TMDB usan primero la API oficial; sin ella se intenta el addon público compatible con Stremio. Kitsu usa su API pública y AniList/MAL usan AniList GraphQL.
 3. [AnimeAPI](https://github.com/nattadasu/animeApi/tree/v3) relaciona IMDb/TMDB/TVDB/Kitsu/AniList/MAL/AniDB. Para temporadas TMDB o TVDB se usa el endpoint específico antes del mapa general.
 4. AniList aporta títulos romaji, inglés, japonés y sinónimos de la entrada mapeada.
 5. Si AnimeAPI no responde, IMDb/TMDB/Kitsu/AniList/MAL conservan su metadata base y el addon sigue usando alias. TVDB y AniDB requieren el mapa para poder obtener un título.
-6. Una `TMDB_API_KEY` privada es opcional y añade títulos localizados y conversiones oficiales IMDb↔TMDB.
+6. Una `TMDB_API_KEY` privada es necesaria para que todos los IDs TMDB funcionen de forma fiable cuando el mapa comunitario no contiene una equivalencia o el addon público no está disponible.
 
 AnimeAPI agrega datos mantenidos por terceros y tiene limitaciones conocidas en relaciones muchos-a-muchos, cours, especiales y algunas temporadas. Por ello AMOKIN no considera que una conversión sea infalible: valida año, tipo, temporada, cantidad de episodios y aliases antes de elegir una ficha.
 
@@ -91,7 +91,7 @@ El servidor queda en `http://127.0.0.1:7100`; para desarrollo usa `npm run dev`.
 
 ## Configuración
 
-La configuración predeterminada funciona sin claves privadas. Copia `.env.example` como `.env` solo para modificarla.
+La configuración predeterminada funciona con IDs nativos y las bases públicas disponibles. Para compatibilidad fiable con todos los IDs TMDB, configura `TMDB_API_KEY`. Copia `.env.example` como `.env` solo para modificarla.
 
 | Variable | Predeterminado | Uso |
 |---|---|---|
@@ -106,7 +106,7 @@ La configuración predeterminada funciona sin claves privadas. Copia `.env.examp
 | `ANILIST_BASE_URL` | `https://graphql.anilist.co` | GraphQL de metadatos y aliases. |
 | `METADATA_BASE_URL` | `https://v3-cinemeta.strem.io` | Metadatos IMDb. |
 | `METADATA_FALLBACK_BASE_URL` | addon TMDB público | Metadatos TMDB sin clave. |
-| `TMDB_API_KEY` | vacío | Enriquecimiento oficial opcional; nunca debe publicarse. |
+| `TMDB_API_KEY` | vacío | Metadatos oficiales y aliases TMDB; recomendada en producción y siempre privada. |
 | `TMDB_LANGUAGE` | `es-ES` | Idioma solicitado a TMDB. |
 | `REQUEST_TIMEOUT_MS` | `10000` | Timeout de proveedores/hosts. |
 | `METADATA_TIMEOUT_MS` | `6000` | Timeout de metadatos/mapas. |

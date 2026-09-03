@@ -493,6 +493,24 @@ export class RemoteMetadataProvider implements MetadataProvider {
   }
 
   private async resolvePublicTmdb(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata> {
+    if (this.config.tmdbApiKey) {
+      try {
+        return await this.resolveOfficialTmdb(type, parsed);
+      } catch (officialError) {
+        try {
+          return await this.resolveStremioMeta(
+            type,
+            parsed,
+            this.config.metadataFallbackBaseUrl,
+            `tmdb:${parsed.baseId}`,
+            "Public metadata",
+          );
+        } catch {
+          throw officialError;
+        }
+      }
+    }
+
     try {
       return await this.resolveStremioMeta(
         type,
@@ -502,7 +520,6 @@ export class RemoteMetadataProvider implements MetadataProvider {
         "Public metadata",
       );
     } catch (error) {
-      if (this.config.tmdbApiKey) return this.resolveOfficialTmdb(type, parsed);
       if (error instanceof MetadataUnavailableError) throw error;
       if (error instanceof UpstreamHttpError && error.upstreamStatus === 404) {
         throw new MetadataUnavailableError();

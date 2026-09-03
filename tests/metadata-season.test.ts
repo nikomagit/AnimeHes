@@ -57,6 +57,53 @@ describe("season-specific metadata", () => {
       call[0].toString().includes("/meta/series/tmdb%3A123.json"))).toBe(true);
   });
 
+  it("uses official TMDB metadata first when a private key is configured", async () => {
+    const request = vi.fn(async (rawUrl: URL | string) => {
+      const url = new URL(String(rawUrl));
+      if (url.hostname === "api.themoviedb.org" && url.pathname === "/3/tv/76975") {
+        expect(url.searchParams.get("api_key")).toBe("test-key");
+        return JSON.stringify({
+          id: 76975,
+          name: "Kanojo x Kanojo x Kanojo",
+          original_name: "Kanojo x Kanojo x Kanojo: Sanshimai to no Dokidoki Kyoudou Seikatsu",
+          first_air_date: "2009-12-25",
+          alternative_titles: { results: [{ title: "Kanojo X Kanojo X Kanojo" }] },
+          translations: { translations: [] },
+          external_ids: {},
+        });
+      }
+      if (url.hostname === "api.themoviedb.org" && url.pathname === "/3/tv/76975/season/1") {
+        return JSON.stringify({
+          name: "Temporada 1",
+          air_date: "2009-12-25",
+          episodes: Array.from({ length: 3 }, (_, index) => ({
+            episode_number: index + 1,
+            name: `Episodio ${index + 1}`,
+            air_date: `20${String(9 + index).padStart(2, "0")}-12-25`,
+          })),
+        });
+      }
+      if (url.hostname === "animeapi.my.id") throw new Error("mapping unavailable");
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    const provider = new RemoteMetadataProvider(testConfig({ tmdbApiKey: "test-key" }), request);
+    await expect(provider.resolve("series", {
+      provider: "tmdb", baseId: "76975", season: 1, episode: 1,
+    })).resolves.toMatchObject({
+      title: "Kanojo x Kanojo x Kanojo",
+      aliases: expect.arrayContaining([
+        "Kanojo x Kanojo x Kanojo: Sanshimai to no Dokidoki Kyoudou Seikatsu",
+        "Kanojo X Kanojo X Kanojo",
+      ]),
+      externalIds: { tmdb: 76975 },
+      seasonTitle: "Temporada 1",
+      episodeTitle: "Episodio 1",
+      seasonEpisodeCount: 3,
+    });
+    expect(vi.mocked(request).mock.calls.some((call) =>
+      new URL(String(call[0])).hostname === "metadata.example")).toBe(false);
+  });
+
   it("enriches IMDb metadata with localized and alternative TMDB titles when a private key is configured", async () => {
     const request = vi.fn(async (rawUrl: URL | string) => {
       const url = new URL(String(rawUrl));

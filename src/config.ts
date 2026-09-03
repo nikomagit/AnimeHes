@@ -155,7 +155,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ),
     cacheMaxEntries: integer(env, "CACHE_MAX_ENTRIES", 500, 1, 10_000),
     userAgent:
-      env.USER_AGENT?.trim() || "AMOKIN/2.0 (+self-hosted)",
+      env.USER_AGENT?.trim() || "AMOKIN/2.1 (+self-hosted)",
     playbackUserAgent:
       env.PLAYBACK_USER_AGENT?.trim() ||
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +

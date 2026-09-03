@@ -158,13 +158,13 @@ export function isSeasonCompatible(metadata: MediaMetadata, media: ProviderMedia
   const season = requestedSeason(metadata);
   if (season === undefined) return true;
   if (structuredSeason(media, season)) return true;
-  if (isExtra(media)) return false;
 
   const marker = inferSeasonNumber(media.title, ...Object.values(media.aka), media.slug);
   if (marker !== undefined) return marker === season;
   if (season <= 1) {
     return externalIdMatch(metadata.externalIds, media.externalIds) === "exact" || exactBaseTitle(metadata, media);
   }
+  if (isExtra(media)) return false;
 
   const candidateYear = yearFrom(media.startDate);
   if (exactSeasonTitle(metadata, media)) {
