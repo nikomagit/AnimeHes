@@ -1,5 +1,5 @@
 import { InvalidMediaRequestError } from "../errors.js";
-import type { MediaType, ParsedMediaId } from "../types.js";
+import type { MediaProvider, MediaType, ParsedMediaId } from "../types.js";
 
 const IMDB_ID = /^tt\d{7,10}$/;
 const POSITIVE_INTEGER = /^\d+$/;
@@ -19,49 +19,49 @@ export function parseMediaType(value: string): MediaType {
   throw new InvalidMediaRequestError("Only movie and series streams are supported");
 }
 
+function parsePrefixedId(
+  type: MediaType,
+  rawId: string,
+  provider: Exclude<MediaProvider, "imdb">,
+): ParsedMediaId {
+  const parts = rawId.split(":");
+  const baseIdNumber = positiveInteger(parts[1]);
+  if (baseIdNumber === undefined) {
+    throw new InvalidMediaRequestError(`Malformed ${provider.toUpperCase()} ID`);
+  }
+  const baseId = String(baseIdNumber);
+  if (type === "movie") {
+    if (provider === "tvdb") {
+      throw new InvalidMediaRequestError("TVDB anime mapping supports series IDs only");
+    }
+    if (parts.length !== 2) {
+      throw new InvalidMediaRequestError("Movie IDs cannot contain episode segments");
+    }
+    return { provider, baseId };
+  }
+  if (parts.length === 2) return { provider, baseId };
+  if (parts.length === 3 && ["kitsu", "anilist", "mal", "anidb"].includes(provider)) {
+    const episode = positiveInteger(parts[2], 100_000);
+    if (episode === undefined) throw new InvalidMediaRequestError("Invalid episode number");
+    return { provider, baseId, season: 1, episode };
+  }
+  if (parts.length !== 4) {
+    throw new InvalidMediaRequestError(`Series ${provider.toUpperCase()} IDs must include a valid episode`);
+  }
+  const season = positiveInteger(parts[2], 10_000);
+  const episode = positiveInteger(parts[3], 100_000);
+  if (season === undefined || episode === undefined) {
+    throw new InvalidMediaRequestError("Invalid season or episode number");
+  }
+  return { provider, baseId, season, episode };
+}
+
 export function parseMediaId(type: MediaType, rawId: string): ParsedMediaId {
   if (!rawId || rawId.length > 256) throw new InvalidMediaRequestError();
 
-  if (rawId.startsWith("tmdb:")) {
-    const parts = rawId.split(":");
-    const baseIdNumber = positiveInteger(parts[1]);
-    if (baseIdNumber === undefined) {
-      throw new InvalidMediaRequestError("Malformed TMDB ID");
-    }
-    const baseId = String(baseIdNumber);
-    if (type === "movie") {
-      if (parts.length !== 2) {
-        throw new InvalidMediaRequestError("Movie TMDB IDs cannot contain episode segments");
-      }
-      return { provider: "tmdb", baseId };
-    }
-    if (parts.length === 2) return { provider: "tmdb", baseId };
-    if (parts.length !== 4) {
-      throw new InvalidMediaRequestError("Series TMDB IDs must use tmdb:id:season:episode");
-    }
-    const season = positiveInteger(parts[2], 10_000);
-    const episode = positiveInteger(parts[3], 100_000);
-    if (season === undefined || episode === undefined) {
-      throw new InvalidMediaRequestError("Invalid TMDB season or episode number");
-    }
-    return { provider: "tmdb", baseId, season, episode };
-  }
-
-  if (rawId.startsWith("kitsu:")) {
-    const parts = rawId.split(":");
-    const baseId = parts[1];
-    if (!baseId || !POSITIVE_INTEGER.test(baseId) || parts.length > 3) {
-      throw new InvalidMediaRequestError("Malformed Kitsu ID");
-    }
-    const episode = positiveInteger(parts[2], 100_000);
-    if ((parts.length === 3 && episode === undefined) || (type === "movie" && episode)) {
-      throw new InvalidMediaRequestError("Malformed Kitsu episode ID");
-    }
-    return {
-      provider: "kitsu",
-      baseId,
-      ...(episode === undefined ? {} : { season: 1, episode }),
-    };
+  const prefix = rawId.split(":", 1)[0];
+  if (prefix === "tmdb" || prefix === "tvdb" || prefix === "kitsu" || prefix === "anilist" || prefix === "mal" || prefix === "anidb") {
+    return parsePrefixedId(type, rawId, prefix);
   }
 
   const parts = rawId.split(":");

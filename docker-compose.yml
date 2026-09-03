@@ -12,6 +12,8 @@ services:
       ANIMEAV1_BASE_URL: https://animeav1.com
       ANIMEAV1_CDN_BASE_URL: https://cdn.animeav1.com
       JKANIME_BASE_URL: https://jkanime.net
+      ANIME_MAPPING_BASE_URL: https://animeapi.my.id
+      ANILIST_BASE_URL: https://graphql.anilist.co
       METADATA_FALLBACK_BASE_URL: https://94c8cb9f702d-tmdb-addon.baby-beamup.club
       TMDB_API_KEY: ${TMDB_API_KEY:-}
       TMDB_LANGUAGE: ${TMDB_LANGUAGE:-es-ES}

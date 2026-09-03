@@ -53,8 +53,8 @@ describe("season-specific metadata", () => {
       seasonYear: 2016, seasonEpisodeCount: 10,
       externalIds: { imdb: "tt3398540", tmdb: 123 },
     });
-    expect(request).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(request).mock.calls[0]?.[0].toString()).toContain("/meta/series/tmdb%3A123.json");
+    expect(vi.mocked(request).mock.calls.some((call) =>
+      call[0].toString().includes("/meta/series/tmdb%3A123.json"))).toBe(true);
   });
 
   it("enriches IMDb metadata with localized and alternative TMDB titles when a private key is configured", async () => {
@@ -83,7 +83,8 @@ describe("season-specific metadata", () => {
     expect(result.aliases).toEqual(expect.arrayContaining([
       "How I Met Your Mother", "Cómo conocí a vuestra madre", "Cómo conocí a tu madre",
     ]));
-    expect(request).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(request).mock.calls.filter((call) =>
+      new URL(String(call[0])).hostname === "api.themoviedb.org")).toHaveLength(1);
   });
 
   it("converts IMDb to TMDB through the official find endpoint when Cinemeta lacks the record", async () => {

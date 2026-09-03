@@ -19,10 +19,10 @@ services:
         value: https://cdn.animeav1.com
       - key: JKANIME_BASE_URL
         value: https://jkanime.net
-      - key: CUEVANA_BASE_URL
-        value: https://cuevana3l.biz
-      - key: LAMOVIE_BASE_URL
-        value: https://lamovie.org
+      - key: ANIME_MAPPING_BASE_URL
+        value: https://animeapi.my.id
+      - key: ANILIST_BASE_URL
+        value: https://graphql.anilist.co
       - key: METADATA_FALLBACK_BASE_URL
         value: https://94c8cb9f702d-tmdb-addon.baby-beamup.club
       - key: TMDB_LANGUAGE

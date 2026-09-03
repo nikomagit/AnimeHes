@@ -1,172 +1,141 @@
 # Investigación y decisiones técnicas
 
-Revisión en vivo actualizada el 1 de septiembre de 2026. Todos los proveedores y hosts son servicios externos y pueden cambiar. Los tests con fixtures protegen el contrato conocido; un cambio incompatible del proveedor requerirá actualizar el cliente o el resolver afectado.
+Revisión realizada el 3 de septiembre de 2026. Los proveedores, hosts y servicios de metadata son externos y pueden cambiar.
 
-## Contrato Nuvio/Stremio
+## Parte A — Anime
 
-AMOKIN implementa los recursos estándar `catalog`, `meta` y `stream`. Los catálogos anuncian `extra: skip`; las fichas usan IDs internos estables y los streams contienen `url`, nunca `infoHash`.
+### Estado anterior
 
-Ejemplo resumido:
+AMOKIN aceptaba IMDb, TMDB, Kitsu e IDs internos `amokin:`. IMDb se resolvía con Cinemeta, TMDB con un addon público compatible con Stremio y Kitsu con su API. Solo IMDb/TMDB compartían una identidad externa común; Kitsu aportaba títulos, pero no se relacionaba con esas bases. TVDB, AniList y MAL no eran IDs aceptados.
 
-```json
-{
-  "streams": [
-    {
-      "name": "AMOKIN\nAnimeAV1 • HLS",
-      "title": "Título • Episodio 1\nHLS",
-      "type": "hls",
-      "url": "https://host.example/m3u8/id",
-      "behaviorHints": {
-        "notWebReady": true,
-        "proxyHeaders": { "request": { "Referer": "https://host.example/play/id" } }
-      }
-    }
-  ]
-}
+Los tres proveedores de anime se localizaban por títulos/aliases. La selección usaba año, categoría, cantidad de episodios y marcadores como `2nd Season`; era conservadora, pero podía fallar cuando una temporada tenía un nombre completamente distinto.
+
+### Qué hace AIO Metadata
+
+La rama `dev` de [AIO Metadata](https://github.com/cedya77/aiometadata/tree/dev) anuncia estos prefijos relevantes: IMDb (`tt`), `tmdb:`, `tvdb:`, `mal:`, `tvmaze:`, `kitsu:`, `anidb:` y `anilist:`. Su resolvedor:
+
+- interpreta primero el prefijo;
+- consulta Cinemeta y APIs de metadata para IMDb/TMDB/TVDB;
+- mantiene índices cruzados para MAL, Kitsu, AniDB, AniList, IMDb, TMDB, TVDB y otros;
+- trata las temporadas de anime como relaciones separadas cuando el mapa las conoce;
+- resuelve episodios entre esquemas de numeración mediante sus mapas.
+
+AIO no usa un solo ID universal. El identificador de entrada y el proveedor elegido determinan el flujo; internamente agrega múltiples IDs. En la metadata, `meta.id` conserva un identificador prefijado utilizable por Stremio, `imdb_id` se publica cuando existe y el proyecto transporta equivalencias adicionales en propiedades internas como `_tmdbId`, `_tvdbId`, `_malId`, `_kitsuId`, `_anilistId` y `_anidbId`. Sus mapas principales provienen de [Fribb anime-lists](https://github.com/Fribb/anime-lists), complementados por datasets como AnimeAPI y mapas específicos. Esto permite IMDb↔TMDB y, si existe una fila relacionada, IMDb/TMDB↔Kitsu/AniList/MAL/AniDB; la conversión inversa usa los mismos índices.
+
+Antes de esta actualización AMOKIN no consultaba AIO Metadata. Depender de una instancia pública configurada de AIO introduciría configuración ajena, latencia y un nuevo punto único de fallo. Se reutilizó el enfoque, no el servidor: un cliente pequeño consulta equivalencias y los metadatos existentes siguen siendo independientes.
+
+### Implementación 2.1.0
+
+IDs de entrada:
+
+| Entrada | Metadata primaria | Enriquecimiento/mapeo |
+|---|---|---|
+| IMDb | Cinemeta; sugerencias IMDb y TMDB opcional como fallback | AnimeAPI; AniList de la entrada mapeada |
+| TMDB | addon público TMDB; API oficial opcional | endpoint AnimeAPI TMDB y endpoint específico de temporada |
+| TVDB (series) | AnimeAPI | endpoint TVDB y endpoint específico de temporada |
+| Kitsu | API pública Kitsu | AnimeAPI; AniList |
+| AniList | GraphQL AniList | AnimeAPI |
+| MAL | GraphQL AniList mediante `idMal` | AnimeAPI |
+| AniDB | AnimeAPI (necesario para obtener título) | AniList si existe equivalencia |
+| `amokin:` | ficha directa del proveedor | no requiere mapa externo |
+
+La identidad normalizada puede contener `imdb`, `tmdb`, `kitsu`, `anilist`, `mal`, `anidb` y `tvdb`. AniList agrega título romaji, inglés, japonés, título preferido y sinónimos. Si AnimeAPI falla, IMDb, TMDB, Kitsu, AniList y MAL continúan con su fuente primaria; TVDB y AniDB no pueden resolverse sin el mapa.
+
+Para `tmdb:{serie}:{temporada}:{episodio}` se consulta primero `/themoviedb/tv/{id}/seasons/{temporada}`. Para IMDb con un TMDB conocido se usa el mismo endpoint. Esto recupera la identidad real de la temporada, por ejemplo Haikyuu T3:
+
+```text
+IMDb tt3398540 + TMDB 60863 + temporada 3
+→ AniList 21698, Kitsu 11935, MAL 32935, AniDB 11991
+→ Haikyuu!! Karasuno Koukou vs. Shiratorizawa Gakuen Koukou
 ```
 
-Nuvio pasa `proxyHeaders.request` al reproductor. Una entrada con `url` y sin `infoHash` es un stream HTTP. El manifest declara `behaviorHints.p2p: false`.
+### Matching
 
-Fuentes de referencia:
+Orden efectivo:
 
-- [NuvioMobile](https://github.com/NuvioMedia/NuvioMobile)
-- [Stream del SDK de Stremio](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/stream.md)
-- [Manifest del SDK de Stremio](https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/manifest.md)
+1. coincidencia de cualquier ID externo compartido;
+2. descarte inmediato ante un ID externo conflictivo;
+3. aliases específicos de la temporada;
+4. títulos romaji, inglés, japonés, principal y sinónimos;
+5. tipo, año, marcador de temporada y cantidad de episodios;
+6. similitud textual como último fallback.
 
-## APIs públicas usadas por AnimeAV1 y Hentaila
+Una identidad externa exacta no se rechaza por idioma. Actualmente AnimeAV1, Hentaila y JKAnime no publican esos IDs, así que en esos proveedores las equivalencias mejoran la lista de aliases y la identidad de temporada; no se finge un match directo por ID.
 
-AnimeAV1 y Hentaila usan una aplicación SvelteKit con una estructura pública equivalente. AMOKIN consulta las rutas `__data.json` utilizadas por el frontend y decodifica su tabla de referencias JSON sin ejecutar JavaScript remoto.
+### Auditoría de proveedores
 
-| Función | Ruta/consulta observada |
-|---|---|
-| Buscar | `/catalogo/__data.json?search={texto}` |
-| Popular | `/catalogo/__data.json?order=popular` |
-| Al aire | `/catalogo/__data.json?status=emision` |
-| Sin censura de Hentaila | `/catalogo/__data.json?uncensored=&order=popular` |
-| Página N | agrega `page={N}` |
-| Ficha | `/media/{slug}/__data.json` |
-| Episodio | `/media/{slug}/{episodio}/__data.json` |
+| Proveedor | Búsqueda | IDs externos publicados | Temporadas | Episodios | Streams aceptados |
+|---|---|---|---|---|---|
+| AnimeAV1 | texto en `catalogo/__data.json` | ninguno observado | ficha independiente o listado propio | número en datos SvelteKit | HLS y MP4Upload |
+| Hentaila | texto en `catalogo/__data.json` | ninguno observado | normalmente ficha independiente | número en datos SvelteKit | VIP/HLS, YourUpload, MP4Upload |
+| JKAnime | `GET /buscar?q=` | ninguno observado | ficha independiente | `/{slug}/{episodio}/` | UM/UMV con HLS público |
 
-El frontend traduce `order=popular` al campo de votos en orden descendente. En la prueba real de Hentaila, la respuesta de Sin Censura confirmó `orderKey: popular`, `uncensored: true`, 20 elementos por página y 16 páginas. Los votos de los primeros ocho elementos fueron descendentes: 40237, 38734, 35908, 26718, 25683, 18802, 17050 y 15348.
+AnimeAV1 y Hentaila publican título, aliases (`aka`), fecha, categoría y episodios en los datos SvelteKit. JKAnime publica título, alias, año, categoría, total de episodios y embeds en HTML. Ninguno permite buscar directamente por IMDb/TMDB/Kitsu/AniList/MAL; por eso cada consulta genera múltiples aliases y valida la ficha antes de resolver vídeo.
 
-La paginación del protocolo se convierte con `page = floor(skip / recordsPerPage) + 1`. En el manifest 2.0.0 esta navegación se expone únicamente para los tres catálogos de Hentaila.
+### Limitaciones del mapa
 
-## AnimeAV1
+- TMDB reutiliza números entre los espacios `movie` y `tv`; el tipo siempre forma parte de la ruta.
+- Una serie IMDb puede representar varias entradas MAL/AniList. La temporada TMDB reduce esa ambigüedad cuando está disponible.
+- Cours, especiales, OVAs y relaciones muchos-a-muchos no siempre tienen equivalencia perfecta.
+- AnimeAPI es un servicio externo y su propio proyecto documenta cambios en sus fuentes de datos; AMOKIN lo usa como enriquecimiento tolerante a fallos, no como única metadata.
 
-Se validó búsqueda, ficha, listado de episodios y streams con una serie larga disponible públicamente. La ficha expuso título, alias, estado, fechas, score, votos, géneros y 1176 episodios.
+## Parte B — Películas y series generales
 
-Fuentes compatibles observadas:
+Los dos proveedores generales anteriores fueron eliminados completamente del código, configuración, resolvers y tests; no permanecen como fallback ni como integraciones deshabilitadas.
 
-| Servidor | Resolución | Resultado |
+Se revisaron alternativas públicas conocidas con streams directos:
+
+| Alternativa | Resultado | Motivo para no integrar |
 |---|---|---|
-| Reproductor HLS | convierte `/play/{id}` en `/m3u8/{id}` en el mismo host permitido | playlist HLS |
-| MP4Upload | analiza el HTML público del embed y valida el host final | MP4 |
+| PeliApi | No recomendable | múltiples scrapers/hosters, Puppeteer y `yt-dlp` como fallbacks; alta fragilidad y coste para un host gratuito |
+| WebStreamr | No recomendable | proyecto/instancia pública declarados obsoletos; los hosters cambian con frecuencia |
+| Addon Latam / Primer Latino | No integrable como fuente | addons independientes o privados, contenido curado/credenciales; no ofrecen una API pública estable de proveedor |
+| IPTV/Xtream | Fuera de alcance | requiere credenciales/lista de un proveedor del usuario y no es una fuente cero-configuración |
+| Public Domain Movies | Cobertura insuficiente | catálogo limitado de dominio público y distribución torrent, no una fuente general HTTP comparable |
 
-El manifiesto HLS real respondió `200`, `application/x-mpegURL` y comenzó con `#EXTM3U`. La URL MP4 respondió correctamente a `HEAD`.
+No se encontró una fuente general que cumpla simultáneamente cobertura, búsqueda fiable, películas y episodios, HLS/MP4 directo, ausencia de navegador/captcha y mantenimiento razonable. Por decisión conservadora no se integró ninguna.
 
-## Hentaila
+## Seguridad y operación
 
-La integración previa se mantuvo y se migró al cliente compartido. Sus búsquedas, fichas, episodios y tres resolvers siguen operativos:
-
-| Servidor | Resolución | Resultado |
-|---|---|---|
-| VIP | convierte el identificador público del reproductor en su playlist del mismo host | HLS |
-| YourUpload | analiza el HTML público del embed y valida el dominio final | MP4 |
-| MP4Upload | analiza el HTML público del embed y valida el dominio final | MP4 |
-
-No se incluyen mirrors que no entregan una URL directa verificable o que parecen depender de sesión/IP. Si un servidor niega acceso, expira o cambia de formato, se omite sin afectar los demás.
-
-## JKAnime
-
-JKAnime se integra únicamente como fuente de streams, sin catálogos públicos en el manifest. La búsqueda usa la ruta pública `GET /buscar?q={título}`; la ficha aporta título alternativo, tipo, año, géneros y cantidad de episodios. Los episodios se consultan con `/{slug}/{episodio}/`.
-
-Solo se aceptan los reproductores públicos `UM` y `UMV` cuando su HTML expone una playlist HLS directa en un dominio permitido de `playmudos.com`. Los reproductores que no entregan una URL reproducible de forma pública se omiten. En la validación real, UM y UMV condujeron a la misma playlist y la deduplicación conservó una sola fuente. No se ejecuta JavaScript remoto, no se intenta sortear protección y no se usan cookies autenticadas.
-
-## Películas y series
-
-Cuevana y LaMovie son exclusivamente fuentes de `/stream`: no agregan catálogos al manifest. La prioridad de respuesta es Cuevana y luego LaMovie; se consultan de forma aislada y no se detiene la búsqueda al obtener el primer resultado.
-
-### Cuevana y Trinity
-
-- La búsqueda pública usa `/explorar?s={título}` y diferencia `/pelicula/` de `/serie/`.
-- La misma búsqueda acepta el TMDB numérico: `s=1100`, `s=438631`, `s=603` y `s=1396` devolvieron respectivamente la ficha exacta esperada. IMDb (`tt...`) no produjo resultados.
-- La ficha no publica IMDb/TMDB como un campo visible. La identidad TMDB se confirma en los embeds Base64: `?tmdb={id}`, `/movie/{id}` o `/tv/{id}/{season}/{episode}`.
-- Por ello Cuevana puede localizar directamente por TMDB y el candidato queda marcado como identidad exacta; no se rechaza después por estar traducido.
-- Las temporadas usan `/serie/{slug}/temporada-{n}` y los episodios `/serie/{slug}/episodio-{temporada}x{episodio}`.
-- Los wrappers públicos contienen el embed final codificado en Base64; se decodifica como texto, sin ejecutar JavaScript.
-- Trinity apunta a Videasy. Su API pública entrega una semilla y un payload cifrado que se descifra localmente con el mismo algoritmo determinista del frontend público.
-- Cada HLS Trinity se valida con una petición real y `#EXTM3U` antes de aceptarlo. El CDN comprobado rechaza `Origin` y `Referer`, por lo que se conserva únicamente el `User-Agent` verificado.
-- Cuevana conserva exclusivamente los embeds Trinity. Si Trinity no está publicado o ninguna de sus playlists supera la validación, el proveedor devuelve cero streams.
-
-Los reproductores alternativos publicados por Cuevana se descartan en el cliente y no llegan al resolver. Esto mantiene una sola ruta de reproducción, evita diferencias de comportamiento entre servidores y reduce la superficie de mantenimiento.
-
-### LaMovie
-
-LaMovie expone JSON público para búsqueda (`/wp-api/v1/search`), fichas, listado de episodios por temporada y player. El cliente usa los IDs internos de episodio y solo procesa `data.embeds`; ignora completamente `downloads`, magnets o cualquier mecanismo de descarga. El embed Vimeos se desempaqueta de forma estática y su master HLS se conserva.
-
-- Búsquedas directas por IMDb, TMDB numérico o `tmdb:{id}` devolvieron `empty`; sus IDs solo sirven para verificar después de buscar por títulos/alias.
-- La búsqueda y ficha publican `original_title`, que ahora participa como alias desde la preselección y no solo después de abrir la ficha.
-- En series, `/wp-api/v1/single/episodes/list` publica `show_id`; se comprobó que coincide con TMDB (por ejemplo, `1396` para Breaking Bad).
-- En películas, `/wp-api/v1/player` puede publicar `videoapp.zip/e/movie/{tmdb}`; Dune expuso `438631`. Si ese embed no existe, se conserva el fallback por alias/año en vez de inventar una identidad.
-- No se encontró IMDb ID en búsqueda, ficha, episodios ni player.
-
-## Matching, IDs y metadatos
-
-Los elementos de catálogo usan `amokin:{provider}:{slug}` y los episodios `amokin:{provider}:{slug}:{episode}`. Esto evita una búsqueda redundante cuando Nuvio navega desde AMOKIN.
-
-Para solicitudes externas:
-
-- IMDb: Cinemeta aporta título, año, `imdb_id` y normalmente `moviedb_id`, permitiendo convertir IMDb → TMDB sin credenciales.
-- TMDB: el addon público de metadatos Stremio conserva temporadas, episodios, alias e `imdb_id` cuando están disponibles, permitiendo TMDB → IMDb.
-- Kitsu: API pública de Kitsu, con títulos canónicos y alternativos.
-
-El fallback TMDB usa el contrato público documentado por el proyecto [TMDB Addon](https://github.com/mrcanelas/tmdb-addon/blob/main/docs/api.md). Su disponibilidad es externa a AMOKIN. Una `TMDB_API_KEY` opcional y privada permite consultar `alternative_titles`, traducciones español/inglés y `external_ids`; también convierte con `/find/{imdb}` si Cinemeta no entrega `moviedb_id`. La clave solo se lee del entorno y nunca se registra.
-
-El orden de matching es: IMDb exacto, TMDB exacto, títulos/alias, tipo y año, y finalmente similitud textual. Una coincidencia externa exacta supera diferencias de idioma; un ID externo conflictivo descarta el candidato aunque el título sea idéntico. Sin IDs del proveedor, se comparan título principal, original, localizado y alternativos. También se generan variantes sin artículos iniciales (`The Matrix` → `Matrix`). Si ningún fallback supera `MIN_MATCH_SCORE`, devuelve cero streams.
-
-## Aislamiento, caché y seguridad
-
-- Cada proveedor se consulta de forma independiente con `Promise.allSettled`.
-- Cada resolver también falla de forma independiente.
-- La deduplicación conserva una sola entrada por URL final exacta.
-- Búsquedas, catálogos, fichas y episodios tienen cachés TTL limitadas; una promesa fallida no queda almacenada permanentemente.
+- No se ejecuta JavaScript remoto ni se intenta sortear controles de acceso.
+- Los hosts y extensiones finales se validan.
+- Cada proveedor y resolver falla de forma aislada.
 - Las respuestas tienen timeout y tamaño máximo.
-- Slugs, esquemas y hosts se validan antes de usar una URL.
-- No se ejecuta código remoto ni se intenta evitar controles de acceso.
+- Las URLs se resuelven al pedir `/stream`; AMOKIN no almacena ni retransmite vídeo.
+- No existen torrents, magnets, `infoHash`, debrid ni P2P.
 
-Las pruebas automatizadas aíslan los tres proveedores con `Promise.allSettled`: cualquiera de AnimeAV1, Hentaila o JKAnime puede fallar sin bloquear los streams de los otros dos.
+## Pruebas
 
-## Resultado de la validación en vivo
+La suite cubre:
 
-- Manifest v2.0.0 con solo tres catálogos Hentaila, logo propio, descripción intacta y `p2p: false`.
-- AnimeAV1 y JKAnime permanecen como proveedores internos de streams, sin catálogos anunciados.
-- Metadatos, póster, géneros y episodios de los proveedores cuando la fuente los publica.
-- AnimeAV1: 2 streams directos en el episodio probado.
-- Hentaila: 3 streams directos en el episodio probado.
-- JKAnime: búsqueda, ficha, episodio y playlist HLS directa comprobados.
-- Los HLS finales de los tres proveedores respondieron `200` y comenzaron con `#EXTM3U`.
-- Los IDs TMDB y Kitsu se probaron sin claves con un episodio real de One Piece.
-- Resolución por IMDb comprobada en paralelo; cada proveedor devuelve únicamente coincidencias suficientemente sólidas.
-- HLS y MP4 finales respondieron correctamente con los headers declarados.
-- Ninguna respuesta inspeccionada contenía magnets, trackers ni `infoHash`.
-- Cuevana/Trinity: HLS `200`, `application/vnd.apple.mpegurl` y `#EXTM3U` en Dune (2021), The Matrix (1999), Breaking Bad T1E1 y T3E5.
-- LaMovie/Vimeos: HLS válido en las dos películas y los dos episodios de Breaking Bad.
-- Validación de matching del 2 de septiembre de 2026: IMDb `tt6468322:1:1` resolvió por TMDB a `La Casa de Papel` en Cuevana y entregó HLS válido; IMDb `tt0133093` seleccionó `Matrix (1999)` en LaMovie, confirmó TMDB `603` y entregó HLS válido.
-- IMDb `tt0460649:1:1` localizó en vivo `Cómo conocí a vuestra madre` mediante TMDB `1100`, con 22 episodios y cuatro embeds. En esa ejecución los hosts públicos no produjeron un HLS final, por lo que se devolvieron cero streams: el matching fue correcto y el corte ocurrió después, en disponibilidad/resolución de vídeo.
+- parsing IMDb, TMDB, TVDB, Kitsu, AniList, MAL, AniDB y `amokin:`;
+- conversiones a la identidad externa completa;
+- endpoint TMDB de temporada;
+- aliases japonés, inglés, romaji y sinónimos;
+- match exacto y conflicto para IDs externos;
+- fallback por alias sin ID del proveedor;
+- temporadas separadas, episodios y rechazo de títulos parecidos incorrectos;
+- proveedores, resolvers, deduplicación, aislamiento y contrato HTTP.
 
-## Temporadas publicadas como títulos independientes
+La validación en vivo reproducible está en `scripts/validate-live.ts`. Comprueba cada formato de ID con One Piece, la temporada 3 de Haikyuu mediante IMDb/TMDB y una ficha interna Hentaila; después solicita el HLS/MP4 final con los headers declarados y valida `#EXTM3U` en playlists.
 
-Nuvio puede solicitar un episodio con un ID unificado, por ejemplo `IMDb:temporada:episodio`, aunque AnimeAV1 o JKAnime publiquen cada temporada como una ficha diferente. El resolver obtiene el año y la cantidad de episodios de la temporada desde fuentes públicas compatibles con Stremio, reconoce indicadores como `2nd Season` y `Third Season`, descarta películas/OVA y valida los candidatos antes de seleccionar el episodio relativo.
+Resultado del 3 de septiembre de 2026:
 
-La regresión se comprobó con `tt3398540:1:1` hasta `tt3398540:4:1`: la temporada 1 selecciona `Haikyuu!!`, la 2 `Second Season`, la 3 `Karasuno vs. Shiratorizawa`/`Third Season` y la 4 `To the Top`. JKAnime participó correctamente en T1, T2 y T3; T4 se obtuvo de AnimeAV1 porque la publicación actual de JKAnime divide esa temporada en dos cours y su ficha no coincide con la cantidad total de episodios entregada por los metadatos. La política conservadora la omite antes que mapear episodios de forma incierta.
+- One Piece E1 resolvió y reprodujo HLS mediante IMDb, TMDB, TVDB, Kitsu, AniList, MAL y AniDB.
+- Cada formato produjo la misma identidad: IMDb `tt0388629`, TMDB `37854`, TVDB `81797`, Kitsu `12`, AniList/MAL `21` y AniDB `69`.
+- AnimeAV1 respondió con HLS `200` y `#EXTM3U` desde `player.zilla-networks.com`.
+- JKAnime respondió con HLS `200` y `#EXTM3U` desde `nika.playmudos.com`.
+- Haikyuu T3E1 por IMDb seleccionó la ficha independiente `Karasuno Koukou vs. Shiratorizawa Gakuen Koukou` en AnimeAV1; por TMDB seleccionó `Haikyuu!! Third Season` en JKAnime. Ambos HLS fueron reproducibles.
+- El ID interno Hentaila de Kaede to Suzu E1 produjo tres streams; VIP respondió HLS `200` y `#EXTM3U` desde `cdn.hvidserv.com`.
 
-## Limitaciones actuales
+## Referencias primarias
 
-- Los enlaces de vídeo pueden caducar y se resuelven en el momento de solicitar `/stream`.
-- JKAnime UM y UMV pueden apuntar al mismo HLS; se devuelve una sola entrada después de deduplicar.
-- La resolución de IDs TMDB depende de la disponibilidad del addon público de metadatos configurado.
-- Si un proveedor divide una temporada en cours sin una numeración inequívoca de episodios absolutos, AMOKIN puede omitir ese proveedor para evitar reproducir el episodio equivocado.
-- Trinity depende del formato público actual de Videasy y de su dominio CDN permitido `peakstorm.top`; un cambio de API o CDN hará que Cuevana devuelva cero streams, no que acepte una URL arbitraria.
-- Los reproductores alternativos de Cuevana quedan expresamente fuera del alcance de AMOKIN.
-
-La comprobación confirma el flujo al momento indicado, pero no garantiza la disponibilidad futura de contenido o mirrors de terceros.
+- [AIO Metadata](https://github.com/cedya77/aiometadata/tree/dev)
+- [AIO Metadata: resolvedor de IDs](https://github.com/cedya77/aiometadata/blob/dev/addon/lib/id-resolver.ts)
+- [AIO Metadata: mapa de anime](https://github.com/cedya77/aiometadata/blob/dev/addon/lib/id-mapper.js)
+- [Fribb anime-lists](https://github.com/Fribb/anime-lists)
+- [AnimeAPI](https://github.com/nattadasu/animeApi/tree/v3)
+- [AniList API](https://docs.anilist.co/)
+- [PeliApi](https://github.com/FxxMorgan/PeliApi)
+- [WebStreamr](https://github.com/webstreamr/webstreamr)
+- [Stremio Public Domain Movies](https://github.com/Stremio/stremio-public-domain)

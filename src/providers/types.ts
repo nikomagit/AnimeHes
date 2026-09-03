@@ -3,11 +3,8 @@ import type { ExternalIds, MediaMetadata, MediaType } from "../types.js";
 export type ProviderId =
   | "animeav1"
   | "hentaila"
-  | "jkanime"
-  | "cuevana"
-  | "lamovie";
+  | "jkanime";
 export type ProviderCatalogKind = "popular" | "airing" | "uncensored";
-export type ProviderScope = "anime" | "general";
 export type ProviderRequestContext = Pick<
   MediaMetadata,
   "type" | "title" | "aliases" | "externalIds" | "year" | "season" | "episode"
@@ -104,7 +101,6 @@ export interface ProviderCatalogPage {
 export interface DirectMediaProvider {
   readonly id: ProviderId;
   readonly name: string;
-  readonly scope?: ProviderScope;
   readonly baseUrl: string;
   readonly cdnBaseUrl: string;
   search(query: string, context?: ProviderRequestContext): Promise<ProviderSearchResult[]>;

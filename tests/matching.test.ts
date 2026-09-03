@@ -85,6 +85,16 @@ describe("conservative title matching", () => {
     })).toBe(1);
   });
 
+  it("matches Kitsu, AniList and MAL identity and rejects a conflicting anime ID", () => {
+    const wanted = {
+      imdb: "tt0388629", tmdb: 37854, kitsu: 12, anilist: 21, mal: 21, anidb: 69,
+    };
+    expect(externalIdMatch(wanted, { kitsu: 12 })).toBe("exact");
+    expect(externalIdMatch(wanted, { anilist: 21 })).toBe("exact");
+    expect(externalIdMatch(wanted, { mal: 21 })).toBe("exact");
+    expect(externalIdMatch(wanted, { anilist: 999 })).toBe("conflict");
+  });
+
   it("uses a localized movie alias when the provider publishes no external IDs", () => {
     const wanted: MediaMetadata = {
       provider: "imdb", baseId: "tt1119646", type: "movie", title: "The Hangover",
@@ -151,6 +161,29 @@ describe("conservative title matching", () => {
     expect(isSeasonCompatible(seasonThree, base)).toBe(false);
     expect(isSeasonCompatible(seasonThree, third)).toBe(true);
     expect(detailedScore(seasonThree, third)).toBeGreaterThan(detailedScore(seasonThree, base));
+  });
+
+  it("prioritizes a mapped romaji season title that has no numeric marker", () => {
+    const seasonThree: MediaMetadata = {
+      provider: "imdb", baseId: "tt3398540", type: "series", title: "Haikyu!!",
+      aliases: ["Haikyuu!!"], season: 3, episode: 1, seasonYear: 2016,
+      seasonEpisodeCount: 10,
+      seasonAliases: [
+        "Haikyuu!! Karasuno Koukou vs. Shiratorizawa Gakuen Koukou",
+        "Haikyu!! 3rd Season",
+        "ハイキュー!! 烏野高校 VS 白鳥沢学園高校",
+      ],
+    };
+    const candidate = {
+      title: "Haikyuu!! Karasuno Koukou vs. Shiratorizawa Gakuen Koukou",
+      slug: "haikyuu-karasuno-koukou-vs-shiratorizawa-gakuen-koukou",
+      aka: { native: "ハイキュー!! 烏野高校 VS 白鳥沢学園高校" },
+      startDate: "2016-10-08", genres: [],
+      episodes: Array.from({ length: 10 }, (_, index) => ({ number: index + 1 })),
+    };
+    expect(buildSearchQueries(seasonThree, 2)[0]).toBe(seasonThree.seasonAliases?.[0]);
+    expect(isSeasonCompatible(seasonThree, candidate)).toBe(true);
+    expect(detailedScore(seasonThree, candidate)).toBeGreaterThan(0.95);
   });
 
   it("accepts an exact later season inside a conventional multi-season series", () => {

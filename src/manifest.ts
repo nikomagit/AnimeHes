@@ -2,7 +2,7 @@ import { catalogDefinitions } from "./catalogs.js";
 
 export const manifest = Object.freeze({
   id: "org.nuvio.amokin",
-  version: "2.0.0",
+  version: "2.1.0",
   name: "AMOKIN",
   logo: "https://amokin.onrender.com/logo.jpg",
   description:
@@ -26,11 +26,11 @@ export const manifest = Object.freeze({
     {
       name: "stream",
       types: ["movie", "series"],
-      idPrefixes: ["tt", "tmdb:", "kitsu:", "amokin:"],
+      idPrefixes: ["tt", "tmdb:", "tvdb:", "kitsu:", "anilist:", "mal:", "anidb:", "amokin:"],
     },
   ],
   types: ["movie", "series"],
-  idPrefixes: ["tt", "tmdb:", "kitsu:", "amokin:"],
+  idPrefixes: ["tt", "tmdb:", "tvdb:", "kitsu:", "anilist:", "mal:", "anidb:", "amokin:"],
   behaviorHints: {
     configurable: false,
     configurationRequired: false,

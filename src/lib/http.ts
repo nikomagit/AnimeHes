@@ -11,6 +11,8 @@ export interface FetchTextOptions {
   maxBytes: number;
   upstream: string;
   headers?: Record<string, string>;
+  method?: "GET" | "POST";
+  body?: string;
 }
 
 export type FetchText = (
@@ -23,10 +25,11 @@ export const fetchText: FetchText = async (url, options) => {
   const timer = setTimeout(() => controller.abort(), options.timeoutMs);
   try {
     const response = await fetch(url, {
-      method: "GET",
+      method: options.method ?? "GET",
       redirect: "follow",
       signal: controller.signal,
       ...(options.headers ? { headers: options.headers } : {}),
+      ...(options.body === undefined ? {} : { body: options.body }),
     });
     if (!response.ok) throw new UpstreamHttpError(options.upstream, response.status);
 

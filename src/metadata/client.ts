@@ -7,6 +7,8 @@ import {
 import { AsyncTtlCache } from "../lib/cache.js";
 import { fetchText, type FetchText } from "../lib/http.js";
 import type { ExternalIds, MediaMetadata, MediaType, ParsedMediaId } from "../types.js";
+import { AniListMetadataClient } from "./anilist.js";
+import { AnimeMappingClient } from "./anime-mapping.js";
 
 interface CinemetaVideo {
   id?: unknown;
@@ -87,23 +89,146 @@ export interface MetadataProvider {
 
 export class RemoteMetadataProvider implements MetadataProvider {
   private readonly cache: AsyncTtlCache<string, MediaMetadata>;
+  private readonly mapping: AnimeMappingClient;
+  private readonly anilist: AniListMetadataClient;
 
   constructor(
     private readonly config: AppConfig,
     private readonly request: FetchText = fetchText,
   ) {
     this.cache = new AsyncTtlCache(config.metadataCacheTtlMs, config.cacheMaxEntries);
+    this.mapping = new AnimeMappingClient(config, request);
+    this.anilist = new AniListMetadataClient(config, request);
   }
 
   resolve(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata> {
     const key = [type, parsed.provider, parsed.baseId, parsed.season, parsed.episode].join(":");
-    return this.cache.getOrCreate(key, () =>
-      parsed.provider === "kitsu"
-        ? this.resolveKitsu(type, parsed)
-        : parsed.provider === "tmdb"
-          ? this.resolvePublicTmdb(type, parsed)
-          : this.resolveImdb(type, parsed),
-    );
+    return this.cache.getOrCreate(key, () => this.resolveComplete(type, parsed));
+  }
+
+  private async resolveComplete(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata> {
+    let base: MediaMetadata;
+    try {
+      switch (parsed.provider) {
+        case "imdb": base = await this.resolveImdb(type, parsed); break;
+        case "tmdb": base = await this.resolvePublicTmdb(type, parsed); break;
+        case "tvdb": base = await this.resolveMappedInput(type, parsed); break;
+        case "kitsu": base = await this.resolveKitsu(type, parsed); break;
+        case "anilist": base = await this.resolveAniListInput(type, parsed, false); break;
+        case "mal": base = await this.resolveAniListInput(type, parsed, true); break;
+        case "anidb": base = await this.resolveMappedInput(type, parsed); break;
+      }
+    } catch (error) {
+      base = await this.resolveMappedFallback(type, parsed).catch(() => { throw error; });
+    }
+
+    const mapping = await this.mapping.resolve(type, parsed, base.externalIds).catch(() => null);
+    const externalIds: ExternalIds = {
+      ...this.sourceExternalId(parsed),
+      ...base.externalIds,
+      ...mapping?.externalIds,
+    };
+    const anilistId = externalIds.anilist;
+    const anime = anilistId === undefined
+      ? undefined
+      : await this.anilist.resolveByAniList(anilistId).catch(() => undefined);
+    Object.assign(externalIds, anime?.externalIds);
+
+    const seasonSpecific = parsed.season !== undefined
+      && parsed.season > 1
+      && (parsed.provider === "imdb" || parsed.provider === "tmdb" || parsed.provider === "tvdb");
+    const mappedAliases = uniqueStrings([mapping?.title, ...(anime?.aliases ?? [])]);
+    const aliases = uniqueStrings([base.title, ...base.aliases, ...mappedAliases]);
+    const seasonAliases = seasonSpecific ? mappedAliases : base.seasonAliases;
+    return {
+      ...base,
+      aliases,
+      externalIds,
+      ...(base.year === undefined && anime?.year !== undefined ? { year: anime.year } : {}),
+      ...(seasonAliases?.length ? { seasonAliases } : {}),
+      ...(seasonSpecific && anime?.year !== undefined ? { seasonYear: anime.year } : {}),
+      ...(seasonSpecific && anime?.episodeCount !== undefined
+        ? { seasonEpisodeCount: anime.episodeCount }
+        : {}),
+    };
+  }
+
+  private async resolveMappedFallback(
+    type: MediaType,
+    parsed: ParsedMediaId,
+  ): Promise<MediaMetadata> {
+    const mapping = await this.mapping.resolve(type, parsed);
+    if (!mapping) throw new MetadataUnavailableError();
+    const anime = mapping.externalIds.anilist === undefined
+      ? undefined
+      : await this.anilist.resolveByAniList(mapping.externalIds.anilist).catch(() => undefined);
+    const aliases = uniqueStrings([mapping.title, ...(anime?.aliases ?? [])]);
+    const title = aliases[0];
+    if (!title) throw new MetadataUnavailableError();
+    const seasonSpecific = parsed.season !== undefined
+      && parsed.season > 1
+      && (parsed.provider === "imdb" || parsed.provider === "tmdb" || parsed.provider === "tvdb");
+    return {
+      ...parsed,
+      type,
+      title,
+      aliases,
+      externalIds: { ...this.sourceExternalId(parsed), ...mapping.externalIds, ...anime?.externalIds },
+      ...(anime?.year === undefined ? {} : { year: anime.year }),
+      ...(seasonSpecific ? { seasonAliases: aliases } : {}),
+      ...(seasonSpecific && anime?.year !== undefined ? { seasonYear: anime.year } : {}),
+      ...(anime?.episodeCount === undefined ? {} : { seasonEpisodeCount: anime.episodeCount }),
+    };
+  }
+
+  private sourceExternalId(parsed: ParsedMediaId): ExternalIds {
+    if (parsed.provider === "imdb") return { imdb: parsed.baseId };
+    const id = positiveInteger(parsed.baseId);
+    if (id === undefined) return {};
+    return { [parsed.provider]: id };
+  }
+
+  private async resolveAniListInput(
+    type: MediaType,
+    parsed: ParsedMediaId,
+    byMal: boolean,
+  ): Promise<MediaMetadata> {
+    const id = positiveInteger(parsed.baseId);
+    if (id === undefined) throw new MetadataUnavailableError();
+    const anime = byMal
+      ? await this.anilist.resolveByMal(id)
+      : await this.anilist.resolveByAniList(id);
+    if (anime.type !== type) throw new MetadataUnavailableError();
+    return {
+      ...parsed,
+      type,
+      title: anime.title,
+      aliases: anime.aliases,
+      externalIds: { ...anime.externalIds, ...(byMal ? { mal: id } : { anilist: id }) },
+      ...(anime.year === undefined ? {} : { year: anime.year }),
+      ...(anime.episodeCount === undefined ? {} : { seasonEpisodeCount: anime.episodeCount }),
+    };
+  }
+
+  private async resolveMappedInput(type: MediaType, parsed: ParsedMediaId): Promise<MediaMetadata> {
+    const mapping = await this.mapping.resolve(type, parsed);
+    if (!mapping) throw new MetadataUnavailableError();
+    const anilist = mapping.externalIds.anilist === undefined
+      ? undefined
+      : await this.anilist.resolveByAniList(mapping.externalIds.anilist).catch(() => undefined);
+    if (anilist && anilist.type !== type) throw new MetadataUnavailableError();
+    const aliases = uniqueStrings([mapping.title, ...(anilist?.aliases ?? [])]);
+    const title = aliases[0];
+    if (!title) throw new MetadataUnavailableError();
+    return {
+      ...parsed,
+      type,
+      title,
+      aliases,
+      externalIds: { ...mapping.externalIds, ...anilist?.externalIds },
+      ...(anilist?.year === undefined ? {} : { year: anilist.year }),
+      ...(anilist?.episodeCount === undefined ? {} : { seasonEpisodeCount: anilist.episodeCount }),
+    };
   }
 
   private options(upstream: string, accept = "application/json") {
@@ -256,6 +381,7 @@ export class RemoteMetadataProvider implements MetadataProvider {
         type,
         title,
         aliases,
+        externalIds: { kitsu: Number(parsed.baseId) },
         ...(year === undefined ? {} : { year }),
       };
     } catch (error) {

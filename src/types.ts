@@ -1,9 +1,14 @@
 export type MediaType = "movie" | "series";
-export type MediaProvider = "imdb" | "kitsu" | "tmdb";
+export type MediaProvider = "imdb" | "tmdb" | "tvdb" | "kitsu" | "anilist" | "mal" | "anidb";
 
 export interface ExternalIds {
   imdb?: string;
   tmdb?: number;
+  kitsu?: number;
+  anilist?: number;
+  mal?: number;
+  anidb?: number;
+  tvdb?: number;
 }
 
 export interface ParsedMediaId {
@@ -21,6 +26,7 @@ export interface MediaMetadata extends ParsedMediaId {
   year?: number;
   episodeTitle?: string;
   seasonTitle?: string;
+  seasonAliases?: string[];
   seasonYear?: number;
   seasonEpisodeCount?: number;
 }

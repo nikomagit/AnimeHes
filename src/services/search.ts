@@ -69,11 +69,8 @@ export class ProviderSearchService implements StreamSearchService {
 
     const parsed = parseMediaId(type, rawId);
     const metadata = await this.metadataProvider.resolve(type, parsed);
-    const activeProviders = metadata.provider === "kitsu"
-      ? this.providers.filter((runtime) => runtime.provider.scope !== "general")
-      : this.providers;
     const settled = await Promise.allSettled(
-      activeProviders.map(async (runtime) => {
+      this.providers.map(async (runtime) => {
         const match = await this.findBestMatch(runtime.provider, metadata);
         if (!match) return [];
         const episodeNumber = chooseEpisode(metadata, match);
@@ -166,7 +163,8 @@ export class ProviderSearchService implements StreamSearchService {
         candidates.set(result.slug, { result: merged, preliminary: Math.max(existing.preliminary, score) });
       }
     }
-    const seasonalRequest = metadata.provider !== "kitsu" && (metadata.season ?? 1) > 1;
+    const entryScopedProviders = new Set(["kitsu", "anilist", "mal", "anidb"]);
+    const seasonalRequest = !entryScopedProviders.has(metadata.provider) && (metadata.season ?? 1) > 1;
     const candidateLimit = seasonalRequest
       ? Math.min(12, Math.max(this.config.maxCandidates, this.config.maxCandidates * 2))
       : this.config.maxCandidates;

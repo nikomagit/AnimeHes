@@ -6,6 +6,8 @@ describe("metadata configuration", () => {
     const config = loadConfig({});
     expect(config.metadataFallbackBaseUrl).toMatch(/^https:\/\//);
     expect(config.jkAnimeBaseUrl).toBe("https://jkanime.net");
+    expect(config.animeMappingBaseUrl).toBe("https://animeapi.my.id");
+    expect(config.anilistBaseUrl).toBe("https://graphql.anilist.co");
     expect(config).not.toHaveProperty("tmdbApiKey");
     expect(config.tmdbLanguage).toBe("es-ES");
   });

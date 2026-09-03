@@ -1,7 +1,6 @@
 import type { AppConfig } from "../config.js";
 import { fetchText, type FetchText } from "../lib/http.js";
 import type { ProviderEmbed } from "./types.js";
-import { GeneralStreamResolver } from "./general/resolvers.js";
 
 export interface ResolvedDirectStream {
   server: string;
@@ -51,11 +50,7 @@ function firstMatch(body: string, patterns: RegExp[]): string | null {
 }
 
 export class DirectStreamResolverRegistry implements DirectStreamResolver {
-  private readonly general: GeneralStreamResolver;
-
-  constructor(private readonly config: AppConfig, private readonly request: FetchText = fetchText) {
-    this.general = new GeneralStreamResolver(config, request);
-  }
+  constructor(private readonly config: AppConfig, private readonly request: FetchText = fetchText) {}
 
   async resolveAll(embeds: ProviderEmbed[], episodePageUrl: string): Promise<ResolvedDirectStream[]> {
     return (await this.resolveEmbeds(embeds, episodePageUrl)).slice(0, this.config.maxStreams);
@@ -63,8 +58,7 @@ export class DirectStreamResolverRegistry implements DirectStreamResolver {
 
   private async resolveEmbeds(embeds: ProviderEmbed[], episodePageUrl: string): Promise<ResolvedDirectStream[]> {
     const settled = await Promise.allSettled(
-      embeds.filter((embed) => this.isSupported(embed) || this.general.supports(embed)).map(async (embed) => {
-        if (this.general.supports(embed)) return this.general.resolve(embed, episodePageUrl);
+      embeds.filter((embed) => this.isSupported(embed)).map(async (embed) => {
         const stream = await this.resolve(embed, episodePageUrl);
         return stream ? [stream] : [];
       }),

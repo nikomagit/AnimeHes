@@ -61,44 +61,6 @@ function resolver(url = "https://video.example/master.m3u8"): DirectStreamResolv
 }
 
 describe("multi-provider stream orchestration", () => {
-  it("matches How I Met Your Mother to Cuevana's Spanish title through TMDB identity", async () => {
-    const localizedMetadata: MetadataProvider = {
-      resolve: vi.fn().mockResolvedValue({
-        provider: "imdb", baseId: "tt0460649", type: "series", title: "How I Met Your Mother",
-        aliases: [], externalIds: { imdb: "tt0460649", tmdb: 1100 }, year: 2005, season: 1, episode: 1,
-      }),
-    };
-    const localizedMedia = {
-      title: "Cómo conocí a vuestra madre", slug: "series-como-conoci-a-vuestra-madre", aka: {},
-      startDate: "2005-01-01", genres: [], mediaType: "series" as const,
-      episodes: [{ number: 10_001, season: 1, relativeNumber: 1 }],
-    };
-    const cuevana: DirectMediaProvider = {
-      id: "cuevana", name: "Cuevana", scope: "general", baseUrl: "https://cuevana3l.biz", cdnBaseUrl: "https://cuevana3l.biz",
-      search: vi.fn().mockResolvedValue([]),
-      searchByExternalIds: vi.fn().mockResolvedValue([{
-        id: "como-conoci-a-vuestra-madre", title: localizedMedia.title, slug: localizedMedia.slug,
-        mediaType: "series", year: 2005, externalIds: { tmdb: 1100 },
-      }]),
-      getCatalog: vi.fn(),
-      getMedia: vi.fn().mockResolvedValue(localizedMedia),
-      getEpisode: vi.fn().mockResolvedValue({
-        media: localizedMedia, episodeNumber: 10_001,
-        embeds: [{ server: "Trinity", language: "Latino", url: "https://player.videasy.net/tv/1100/1/1" }],
-      }),
-    };
-    const service = new ProviderSearchService(testConfig(), localizedMetadata, [
-      { provider: cuevana, resolvers: resolver("https://video.example/himym.m3u8") },
-    ]);
-    const streams = await service.getStreams("series", "tt0460649:1:1");
-    expect(streams).toHaveLength(1);
-    expect(cuevana.searchByExternalIds).toHaveBeenCalledWith(expect.objectContaining({
-      externalIds: { imdb: "tt0460649", tmdb: 1100 },
-    }));
-    expect(cuevana.getEpisode).toHaveBeenCalledWith(localizedMedia.slug, 10_001, expect.any(Object));
-    expect(streams[0]?.title.normalize("NFC")).toContain("Cómo conocí a vuestra madre");
-  });
-
   it("keeps AnimeAV1 working when Hentaila and JKAnime fail", async () => {
     const anime = provider("animeav1");
     const hentai = provider("hentaila", true);
@@ -161,6 +123,7 @@ describe("multi-provider stream orchestration", () => {
       resolve: vi.fn().mockResolvedValue({
         provider: "imdb", baseId: "tt3398540", type: "series", title: "Haikyu!!",
         aliases: ["Haikyuu!!"], year: 2014, season: 3, episode: 1,
+        seasonAliases: ["Haikyuu!! Karasuno Koukou vs. Shiratorizawa Gakuen Koukou"],
         seasonYear: 2016, seasonEpisodeCount: 10,
       }),
     };

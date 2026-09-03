@@ -92,12 +92,12 @@ export type ExternalIdMatch = "exact" | "conflict" | "unknown";
 export function externalIdMatch(wanted: ExternalIds | undefined, available: ExternalIds | undefined): ExternalIdMatch {
   if (!wanted || !available) return "unknown";
   let exact = false;
-  if (wanted.imdb && available.imdb) {
-    if (wanted.imdb !== available.imdb) return "conflict";
-    exact = true;
-  }
-  if (wanted.tmdb !== undefined && available.tmdb !== undefined) {
-    if (wanted.tmdb !== available.tmdb) return "conflict";
+  const keys: Array<keyof ExternalIds> = ["imdb", "tmdb", "kitsu", "anilist", "mal", "anidb", "tvdb"];
+  for (const key of keys) {
+    const expected = wanted[key];
+    const candidate = available[key];
+    if (expected === undefined || candidate === undefined) continue;
+    if (expected !== candidate) return "conflict";
     exact = true;
   }
   return exact ? "exact" : "unknown";
@@ -129,12 +129,20 @@ export function inferSeasonNumber(...values: Array<string | undefined>): number 
 }
 
 function requestedSeason(metadata: MediaMetadata): number | undefined {
-  // A Kitsu anime ID normally identifies one season as its own media entry.
-  return metadata.provider === "kitsu" ? undefined : metadata.season;
+  // These anime databases normally identify each season/cour as its own media entry.
+  return ["kitsu", "anilist", "mal", "anidb"].includes(metadata.provider)
+    ? undefined
+    : metadata.season;
 }
 
 function exactBaseTitle(metadata: MediaMetadata, media: ProviderMedia): boolean {
   const wanted = new Set(mediaAliases(metadata).map(normalizeTitle));
+  return candidateAliases(media).some((alias) => wanted.has(normalizeTitle(alias)));
+}
+
+function exactSeasonTitle(metadata: MediaMetadata, media: ProviderMedia): boolean {
+  if (!metadata.seasonAliases?.length) return false;
+  const wanted = new Set(metadata.seasonAliases.map(normalizeTitle));
   return candidateAliases(media).some((alias) => wanted.has(normalizeTitle(alias)));
 }
 
@@ -159,6 +167,9 @@ export function isSeasonCompatible(metadata: MediaMetadata, media: ProviderMedia
   }
 
   const candidateYear = yearFrom(media.startDate);
+  if (exactSeasonTitle(metadata, media)) {
+    return metadata.seasonYear === undefined || candidateYear === undefined || candidateYear === metadata.seasonYear;
+  }
   if (metadata.seasonYear === undefined || candidateYear !== metadata.seasonYear) return false;
   if (exactBaseTitle(metadata, media)) return false;
 
@@ -177,7 +188,10 @@ export function preliminaryScore(metadata: MediaMetadata, result: ProviderSearch
   const identity = externalIdMatch(metadata.externalIds, result.externalIds);
   if (identity === "exact") return 1;
   if (identity === "conflict") return 0;
-  let score = bestAliasScore(mediaAliases(metadata), [result.title, ...(result.aliases ?? [])]);
+  let score = bestAliasScore(
+    [...(metadata.seasonAliases ?? []), ...mediaAliases(metadata)],
+    [result.title, ...(result.aliases ?? [])],
+  );
   const season = requestedSeason(metadata);
   if (season !== undefined && season > 1) {
     const marker = inferSeasonNumber(result.title, result.slug);
@@ -192,7 +206,10 @@ export function detailedScore(metadata: MediaMetadata, media: ProviderMedia): nu
   const identity = externalIdMatch(metadata.externalIds, media.externalIds);
   if (identity === "exact") return 1;
   if (identity === "conflict") return 0;
-  let score = bestAliasScore(mediaAliases(metadata), candidateAliases(media));
+  let score = bestAliasScore(
+    [...(metadata.seasonAliases ?? []), ...mediaAliases(metadata)],
+    candidateAliases(media),
+  );
   const candidateYear = yearFrom(media.startDate);
   if (metadata.year !== undefined && candidateYear !== undefined) {
     const difference = Math.abs(metadata.year - candidateYear);
@@ -213,7 +230,7 @@ export function detailedScore(metadata: MediaMetadata, media: ProviderMedia): nu
       }
       if (metadata.seasonEpisodeCount !== undefined
         && media.episodes.length === metadata.seasonEpisodeCount) score += 0.12;
-      if (exactBaseTitle(metadata, media)) score -= 0.3;
+      if (exactBaseTitle(metadata, media) && !exactSeasonTitle(metadata, media)) score -= 0.3;
     }
   }
   return Math.max(0, Math.min(1, score));
@@ -228,7 +245,8 @@ function ordinal(value: number): string {
 }
 
 export function buildSearchQueries(metadata: MediaMetadata, maximum: number): string[] {
-  const base = mediaAliases(metadata).flatMap((title) => {
+  const preferredAliases = [...(metadata.seasonAliases ?? []), ...mediaAliases(metadata)];
+  const base = preferredAliases.flatMap((title) => {
     const withoutFirstInstallment = title.replace(HUMAN_FIRST_INSTALLMENT_SUFFIX, "").trim();
     const titles = withoutFirstInstallment && withoutFirstInstallment !== title
       ? [title, withoutFirstInstallment]
@@ -239,14 +257,17 @@ export function buildSearchQueries(metadata: MediaMetadata, maximum: number): st
     });
   });
   const season = requestedSeason(metadata);
+  const seasonalAliasKeys = new Set((metadata.seasonAliases ?? []).map(normalizeTitle));
   const candidates = season && season > 1
-    ? base.flatMap((title) => [
-        ...(metadata.seasonTitle ? [`${title} ${metadata.seasonTitle}`] : []),
-        `${title} ${ordinal(season)} Season`,
-        `${title} Season ${season}`,
-        `${title} ${season}`,
-        title,
-      ])
+    ? base.flatMap((title) => seasonalAliasKeys.has(normalizeTitle(title))
+      ? [title]
+      : [
+          ...(metadata.seasonTitle ? [`${title} ${metadata.seasonTitle}`] : []),
+          `${title} ${ordinal(season)} Season`,
+          `${title} Season ${season}`,
+          `${title} ${season}`,
+          title,
+        ])
     : base;
   const seen = new Set<string>();
   const queries: string[] = [];
